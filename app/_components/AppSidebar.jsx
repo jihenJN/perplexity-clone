@@ -9,15 +9,17 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
- 
- 
 } from "@/components/ui/sidebar";
 import Image from "next/image";
 import { Compass, GalleryHorizontalEnd, LogIn, Search } from "lucide-react";
-import { usePathname } from 'next/navigation';
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-
-
+import {
+  SignOutButton,
+  SignUpButton,
+  UserButton,
+  useUser,
+} from "@clerk/nextjs";
 
 const MenuOptions = [
   {
@@ -38,12 +40,17 @@ const MenuOptions = [
   {
     title: "Signin",
     icon: LogIn,
-    path: "#",
+    path: "/sign-in",
   },
 ];
 
 function AppSidebar() {
   const path = usePathname();
+  const user = useUser();
+   // 1. Direct value
+  console.log("hello");
+    console.log(user);
+
   return (
     <Sidebar>
       <SidebarHeader className="bg-accent flex items-center p-5">
@@ -61,12 +68,10 @@ function AppSidebar() {
               {MenuOptions.map((menu, index) => (
                 <SidebarMenuItem key={index}>
                   {/* <SidebarMenuButton asChild className={"p-5 y-5"}> */}
-                    <SidebarMenuButton className={"p-5 y-5"}> 
+                  <SidebarMenuButton className={"p-5 y-5"}>
                     <a
                       href={menu.path}
-                      className={
-                        `h-8 w-8 flex gap-5 items-center hover:bg-transparent hover:font-bold ${path?.includes(menu.path)&&'font-bold'}`
-                      }
+                      className={`h-8 w-8 flex gap-5 items-center hover:bg-transparent hover:font-bold ${path?.includes(menu.path) && "font-bold"}`}
                     >
                       <menu.icon />
                       <span className="text-lg">{menu.title}</span>
@@ -75,22 +80,35 @@ function AppSidebar() {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
-            <Button className="rounded-full mx-4 mt-4" >sign up</Button>
+             
+            {!user ? (
+             
+              <SignUpButton mode="modal">
+                <Button className="rounded-full mx-4 mt-4">sign up</Button>
+              </SignUpButton>
+            ) : (
+              <SignOutButton>
+                <Button className="rounded-full mx-4 mt-4">log out</Button>
+              </SignOutButton>
+            )}
           </SidebarContent>
         </SidebarGroup>
 
         <SidebarGroup />
       </SidebarContent>
       <SidebarFooter className="bg-accent">
-          <div className="p-6">
-            <h2 className='text-gray-500'>Try premium</h2>
-            <p className='text-gray-400'> Upgrade for image Upload , smater Ia and more capilot</p>
-            <Button variant={'secondary'} className='text-gray-500'>Learn More</Button>
-          </div>
+        <div className="p-3 flex flex-col ">
+          <h2 className="text-gray-500">Try premium</h2>
+          <p className="text-gray-400">
+            {" "}
+            Upgrade for image Upload , smater Ia and more capilot
+          </p>
+          <Button variant={"secondary"} className="text-gray-500 mb-3">
+            Learn More
+          </Button>
+        </div>
+        <UserButton />
       </SidebarFooter>
-
-        
-      
     </Sidebar>
   );
 }
