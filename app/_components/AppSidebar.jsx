@@ -46,10 +46,8 @@ const MenuOptions = [
 
 function AppSidebar() {
   const path = usePathname();
-  const user = useUser();
-   // 1. Direct value
-  console.log("hello");
-    console.log(user);
+  const {user , isLoaded} = useUser();
+  if (!isLoaded) return null; // ← add this
 
   return (
     <Sidebar>
@@ -81,15 +79,16 @@ function AppSidebar() {
               ))}
             </SidebarMenu>
              
-            {!user ? (
-             
-              <SignUpButton mode="modal">
-                <Button className="rounded-full mx-4 mt-4">sign up</Button>
-              </SignUpButton>
-            ) : (
-              <SignOutButton>
+            {user ? (
+                <SignOutButton>
                 <Button className="rounded-full mx-4 mt-4">log out</Button>
               </SignOutButton>
+             
+            ) : (
+               <SignUpButton mode="modal">
+                <Button className="rounded-full mx-4 mt-4">sign up</Button>
+              </SignUpButton>
+           
             )}
           </SidebarContent>
         </SidebarGroup>
@@ -97,11 +96,11 @@ function AppSidebar() {
         <SidebarGroup />
       </SidebarContent>
       <SidebarFooter className="bg-accent">
-        <div className="p-3 flex flex-col ">
+        <div className="p-5 flex flex-col ">
           <h2 className="text-gray-500">Try premium</h2>
           <p className="text-gray-400">
-            {" "}
-            Upgrade for image Upload , smater Ia and more capilot
+         
+            Upgrade for image Upload, smater Ia and more capilot
           </p>
           <Button variant={"secondary"} className="text-gray-500 mb-3">
             Learn More
