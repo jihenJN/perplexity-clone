@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import AnswerDisplay from "./AnswerDisplay";
 import axios from "axios";
+import { SEARCH_RESULT } from "@/app/services/Shared";
 
 const tabs = [
   { label: "Answer", icon: LucideSparkles },
@@ -17,9 +18,11 @@ const tabs = [
 
 function DisplayResult({ searchInputRecord }) {
   const [activeTab, setActiveTab] = useState("Answer");
+  const [searchResult,setSearchResult]=useState(SEARCH_RESULT);
+  
   useEffect(()=>{
     //update this method
-    searchInputRecord && GetSearchApiResult();
+  //searchInputRecord && GetSearchApiResult();
   },[searchInputRecord?.libId])
   
   const GetSearchApiResult = async () => {
@@ -60,7 +63,7 @@ function DisplayResult({ searchInputRecord }) {
         </div>
       </div>
 
-      <div>{activeTab == "Answer" ? <AnswerDisplay /> : null}</div>
+      <div>{activeTab == "Answer" ? <AnswerDisplay searchResult={searchResult} /> : null}</div>
     </div>
   );
 }
