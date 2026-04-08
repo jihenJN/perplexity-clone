@@ -8,6 +8,8 @@ import {
 import AnswerDisplay from "./AnswerDisplay";
 import axios from "axios";
 import { SEARCH_RESULT } from "@/app/services/Shared";
+import { useParams } from "next/navigation";
+import { supabase } from "@/app/services/Supabase";
 
 const tabs = [
   { label: "Answer", icon: LucideSparkles },
@@ -18,20 +20,40 @@ const tabs = [
 
 function DisplayResult({ searchInputRecord }) {
   const [activeTab, setActiveTab] = useState("Answer");
-  const [searchResult,setSearchResult]=useState(SEARCH_RESULT);
-  
-  useEffect(()=>{
+  const [searchResult, setSearchResult] = useState(SEARCH_RESULT);
+  const {libId}=useParams();
+  useEffect(() => {
     //update this method
-  //searchInputRecord && GetSearchApiResult();
-  },[searchInputRecord?.libId])
-  
+    searchInputRecord && GetSearchApiResult();
+  }, [searchInputRecord?.libId]);
+
   const GetSearchApiResult = async () => {
-    const result = await axios.post("/api/serp-api", {
-      searchInput: searchInputRecord?.searchInput,
-      searchType: searchInputRecord?.type,
-    });
-    console.log(result.data);
-    console.log(JSON.stringify(result.data))
+    // const result = await axios.post("/api/serp-api", {
+    //   searchInput: searchInputRecord?.searchInput,
+    //   searchType: searchInputRecord?.type,
+    // });
+    // console.log(result.data);
+    const searchResp = SEARCH_RESULT;
+    //save to DB
+    const formattedSearchResp = searchResp?.organic_results?.map(
+      (item, index) => ({
+        title: item?.title,
+        description: item?.about_this_result?.source?.description,
+        img: item?.about_this_result?.source?.icon,
+        url: item?.link,
+        thumbnail: item?.thumbnail,
+      }),
+    );
+
+    console.log(formattedSearchResp);
+    //Fetch Latest From DB
+
+    const { data, error } = await supabase
+      .from("Chats")
+      .insert([{ libId:libId, searchResult:formattedSearchResp}])
+      .select();
+
+      console.log(data);
   };
   return (
     <div className="mt-7">
@@ -63,7 +85,11 @@ function DisplayResult({ searchInputRecord }) {
         </div>
       </div>
 
-      <div>{activeTab == "Answer" ? <AnswerDisplay searchResult={searchResult} /> : null}</div>
+      <div>
+        {activeTab == "Answer" ? (
+          <AnswerDisplay searchResult={searchResult} />
+        ) : null}
+      </div>
     </div>
   );
 }
