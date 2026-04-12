@@ -12,6 +12,7 @@
     "@clerk/nextjs": "^7.0.4",
     "@hugeicons/core-free-icons": "^4.0.0",
     "@hugeicons/react": "^1.1.6",
+    "@inngest/ai": "^0.1.7",
     "@supabase/supabase-js": "^2.99.1",
     "axios": "^1.14.0",
     "class-variance-authority": "^0.7.1",
