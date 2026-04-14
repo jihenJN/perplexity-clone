@@ -21,11 +21,11 @@ const tabs = [
 function DisplayResult({ searchInputRecord }) {
   const [activeTab, setActiveTab] = useState("Answer");
   const [searchResult, setSearchResult] = useState(SEARCH_RESULT);
-  const {libId}=useParams();
+  const { libId } = useParams();
   useEffect(() => {
     //update this method
     searchInputRecord && GetSearchApiResult();
-  }, [searchInputRecord?.libId]);
+  }, [searchInputRecord]);
 
   const GetSearchApiResult = async () => {
     // const result = await axios.post("/api/serp-api", {
@@ -45,16 +45,36 @@ function DisplayResult({ searchInputRecord }) {
       }),
     );
 
-    console.log(formattedSearchResp);
     //Fetch Latest From DB
 
     const { data, error } = await supabase
       .from("Chats")
-      .insert([{ libId:libId, searchResult:formattedSearchResp}])
+      .insert([{ libId: libId, searchResult: formattedSearchResp }])
       .select();
 
-      console.log(data);
+    if (error || !data?.length) {
+      console.error("❌ Supabase insert failed:", error);
+      return; // stops here, GenerateAIResp never called
+    }
+    await GenerateAIResp(formattedSearchResp, data[0].id);
+    //Pass to LLM Model
   };
+
+  const GenerateAIResp = async (formattedSearchResp, recordId) => {
+    console.log("🔥 GenerateAIResp called!", { formattedSearchResp, recordId });
+
+    try {
+      const result = await axios.post("/api/llm-model", {
+        searchInput: searchInputRecord?.searchInput,
+        searchResult: formattedSearchResp,
+        recordId: recordId,
+      });
+      console.log("✅ result:", result.data);
+    } catch (error) {
+      console.error("❌ axios error:", error.response?.data ?? error.message); // 👈 this will show the real error
+    }
+  };
+
   return (
     <div className="mt-7">
       <h2 className="font-medium text-3xl line-clamp-2">

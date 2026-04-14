@@ -13,6 +13,7 @@ export async function POST(req) {
       api_key: process.env.SERPAPI_KEY,
     },
   });
+  
   console.log(result.data)
   return NextResponse.json(result.data);
   } else {
