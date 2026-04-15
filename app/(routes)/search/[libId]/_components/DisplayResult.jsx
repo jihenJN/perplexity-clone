@@ -53,7 +53,7 @@ function DisplayResult({ searchInputRecord }) {
       .select();
 
     if (error || !data?.length) {
-      console.error("❌ Supabase insert failed:", error);
+      console.error("Supabase insert failed:", error);
       return; // stops here, GenerateAIResp never called
     }
     await GenerateAIResp(formattedSearchResp, data[0].id);
@@ -61,18 +61,29 @@ function DisplayResult({ searchInputRecord }) {
   };
 
   const GenerateAIResp = async (formattedSearchResp, recordId) => {
-    console.log("🔥 GenerateAIResp called!", { formattedSearchResp, recordId });
+    const result = await axios.post("/api/llm-model", {
+      searchInput: searchInputRecord?.searchInput,
+      searchResult: formattedSearchResp,
+      recordId: recordId,
+    });
 
-    try {
-      const result = await axios.post("/api/llm-model", {
-        searchInput: searchInputRecord?.searchInput,
-        searchResult: formattedSearchResp,
-        recordId: recordId,
+    const runId = result.data;
+
+    console.log(runId);
+    // // small delay to let Inngest register the run
+   // await new Promise((res) => setTimeout(res, 1000));
+
+    const interval = setInterval(async () => {
+      const runResp = await axios.post("/api/get-inngest-status", {
+        runId: runId,
       });
-      console.log("✅ result:", result.data);
-    } catch (error) {
-      console.error("❌ axios error:", error.response?.data ?? error.message); // 👈 this will show the real error
-    }
+
+      if (runResp.data.data[0]?.status === "Completed") {
+        console.log("Completed!!!");
+        clearInterval(interval);
+        //get updated data from database
+      }
+    }, 1000);
   };
 
   return (
