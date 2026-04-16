@@ -25,6 +25,7 @@ function DisplayResult({ searchInputRecord }) {
   useEffect(() => {
     //update this method
     searchInputRecord && GetSearchApiResult();
+    //setSearchResult(searchInputRecord);
   }, [searchInputRecord]);
 
   const GetSearchApiResult = async () => {
@@ -49,7 +50,13 @@ function DisplayResult({ searchInputRecord }) {
 
     const { data, error } = await supabase
       .from("Chats")
-      .insert([{ libId: libId, searchResult: formattedSearchResp }])
+      .insert([
+        {
+          libId: libId,
+          searchResult: formattedSearchResp,
+          userSearchInput: searchInputRecord?.searchInput,
+        },
+      ])
       .select();
 
     if (error || !data?.length) {
