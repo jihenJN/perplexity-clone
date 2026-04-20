@@ -17,7 +17,7 @@ function SearchQueryResult() {
       .select("*,Chats(*)")
       .eq("libId", libId);
     console.log(Library[0]);
-    setSearchInputRecord(Library[0]);
+   setSearchInputRecord(Library[0]);
   };
   return (
     <div>

@@ -24,8 +24,10 @@ function DisplayResult({ searchInputRecord }) {
   const { libId } = useParams();
   useEffect(() => {
     //update this method
-    searchInputRecord && GetSearchApiResult();
-    //setSearchResult(searchInputRecord);
+    searchInputRecord?.Chats?.length === 0 && GetSearchApiResult();
+
+    setSearchResult(searchInputRecord);
+    console.log(searchInputRecord);
   }, [searchInputRecord]);
 
   const GetSearchApiResult = async () => {
@@ -33,7 +35,7 @@ function DisplayResult({ searchInputRecord }) {
     //   searchInput: searchInputRecord?.searchInput,
     //   searchType: searchInputRecord?.type,
     // });
-    // console.log(result.data);
+    console.log(result.data);
     const searchResp = SEARCH_RESULT;
     //save to DB
     const formattedSearchResp = searchResp?.organic_results?.map(
@@ -78,7 +80,7 @@ function DisplayResult({ searchInputRecord }) {
 
     console.log(runId);
     // // small delay to let Inngest register the run
-   // await new Promise((res) => setTimeout(res, 1000));
+    // await new Promise((res) => setTimeout(res, 1000));
 
     const interval = setInterval(async () => {
       const runResp = await axios.post("/api/get-inngest-status", {
@@ -95,39 +97,42 @@ function DisplayResult({ searchInputRecord }) {
 
   return (
     <div className="mt-7">
-      <h2 className="font-medium text-3xl line-clamp-2">
-        {searchInputRecord?.searchInput}
-      </h2>
-      <div className="flex items-center space-x-6 border-b border-gray-200 pb-2 mt-6">
-        {tabs.map(({ label, icon: Icon, badge }) => (
-          <button
-            key={label}
-            onClick={() => setActiveTab(label)}
-            className={`flex items-center gap-1 relative text-sm font-medium text-gray-700 hover:text-black ${activeTab === label ? "text-black" : ""}`}
-          >
-            <Icon className="w-4 h-4" />
-            <span>{label}</span>
-            {badge && (
-              <span className="ml-1 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                {badge}
-              </span>
-            )}
+      {searchInputRecord?.Chats?.map((chat, index) => (
+        <div key={index} className="mt-7">
+          <h2 className="font-bold text-3xl line-clamp-2">
+            {chat?.userSearchInput}
+          </h2>
+          <div className="flex items-center space-x-6 border-b border-gray-200 pb-2 mt-6">
+            {tabs.map(({ label, icon: Icon, badge }) => (
+              <button
+                key={label}
+                onClick={() => setActiveTab(label)}
+                className={`flex items-center gap-1 relative text-sm font-medium text-gray-700 hover:text-black ${activeTab === label ? "text-black" : ""}`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{label}</span>
+                {badge && (
+                  <span className="ml-1 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                    {badge}
+                  </span>
+                )}
 
-            {activeTab === label && (
-              <span className="absolute -bottom-2 left-0 w-full h-0.5 bg-black rounded"></span>
-            )}
-          </button>
-        ))}
-        <div className="ml-auto text-sm text-gray-500">
-          1 task <span className="ml-1">🡥</span>
+                {activeTab === label && (
+                  <span className="absolute -bottom-2 left-0 w-full h-0.5 bg-black rounded"></span>
+                )}
+              </button>
+            ))}
+            <div className="ml-auto text-sm text-gray-500">
+              1 task <span className="ml-1">🡥</span>
+            </div>
+          </div>
+
+          <div>
+            {activeTab == "Answer" ? <AnswerDisplay chat={chat} /> : null}
+          </div>
+          <hr className="my-5"/>
         </div>
-      </div>
-
-      <div>
-        {activeTab == "Answer" ? (
-          <AnswerDisplay searchResult={searchResult} />
-        ) : null}
-      </div>
+      ))}
     </div>
   );
 }
