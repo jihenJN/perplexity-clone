@@ -10,6 +10,8 @@ import axios from "axios";
 import { SEARCH_RESULT } from "@/app/services/Shared";
 import { useParams } from "next/navigation";
 import { supabase } from "@/app/services/Supabase";
+import ImageListTab from "./ImageListTab";
+import SourceListTab from "./SourceListTab";
 
 const tabs = [
   { label: "Answer", icon: LucideSparkles },
@@ -128,9 +130,15 @@ function DisplayResult({ searchInputRecord }) {
           </div>
 
           <div>
-            {activeTab == "Answer" ? <AnswerDisplay chat={chat} /> : null}
+            {activeTab === "Answer" ? 
+            (<AnswerDisplay chat={chat} />) : 
+             activeTab === "Images" ? 
+             (<ImageListTab chat={chat} />) : 
+             activeTab === "Sources" ? 
+             (<SourceListTab chat={chat}/>):
+             null}
           </div>
-          <hr className="my-5"/>
+          <hr className="my-5" />
         </div>
       ))}
     </div>
