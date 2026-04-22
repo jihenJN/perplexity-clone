@@ -137,6 +137,12 @@ function DisplayResult({ searchInputRecord }) {
 
   return (
     <div className="mt-7">
+        {!searchResult && 
+      <div>
+        <div className='w-full h-4 animate-pulse bg-accent rounded-md'> </div>
+         <div className='w-1/2 mt-2 h-4 animate-pulse bg-accent rounded-md'> </div>
+          <div className='w-[70%] mt-2 h-4 animate-pulse bg-accent rounded-md'> </div>
+      </div>}
       {searchResult?.Chats?.map((chat, index) => (
         <div key={index} className="mt-7">
           <h2 className="font-bold text-3xl line-clamp-2">
