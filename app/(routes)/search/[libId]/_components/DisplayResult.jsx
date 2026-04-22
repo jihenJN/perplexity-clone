@@ -24,9 +24,8 @@ function DisplayResult({ searchInputRecord }) {
   const [activeTab, setActiveTab] = useState("Answer");
   const [searchResult, setSearchResult] = useState(searchInputRecord);
   const { libId } = useParams();
-
   const hasFetched = useRef(false); // prevent double call
-
+  const [loadingSearch,setLoadingSearch]=useState(false);
 
    useEffect(() => {
   if (!searchInputRecord) return;
@@ -56,11 +55,13 @@ function DisplayResult({ searchInputRecord }) {
   // }, [searchInputRecord]);
 
   const GetSearchApiResult = async () => {
+    setLoadingSearch(true);
+    await new Promise(resolve => setTimeout(resolve, 0));
     const result = await axios.post("/api/serp-api", {
       searchInput: searchInputRecord?.searchInput,
       searchType: searchInputRecord?.type,
     });
-    console.log(result.data);
+  
    const searchResp = result.data;
     //save to DB
     const formattedSearchResp = searchResp?.organic_results?.map(
@@ -74,7 +75,6 @@ function DisplayResult({ searchInputRecord }) {
     );
 
     //Fetch Latest From DB
-
     const { data, error } = await supabase
       .from("Chats")
       .insert([
@@ -88,9 +88,11 @@ function DisplayResult({ searchInputRecord }) {
 
     if (error || !data?.length) {
       console.error("Supabase insert failed:", error);
+      setLoadingSearch(false);
       return; // stops here, GenerateAIResp never called
     }
     await GetSearchRecords();
+    setLoadingSearch(false);
     await GenerateAIResp(formattedSearchResp, data[0].id);
     //Pass to LLM Model
   };
@@ -128,7 +130,9 @@ function DisplayResult({ searchInputRecord }) {
          .select("*,Chats(*)")
          .eq("libId", libId);
 
-         setSearchResult(Library[0])
+         setSearchResult(Library[0]);
+         
+
   };
 
   return (
@@ -165,7 +169,7 @@ function DisplayResult({ searchInputRecord }) {
 
           <div>
             {activeTab === "Answer" ? 
-            (<AnswerDisplay chat={chat} />) : 
+            (<AnswerDisplay chat={chat} loadingSearch={loadingSearch}/>) : 
              activeTab === "Images" ? 
              (<ImageListTab chat={chat} />) : 
              activeTab === "Sources" ? 
