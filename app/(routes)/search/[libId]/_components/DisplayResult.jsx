@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Loader2Icon,
   LucideImage,
   LucideList,
   LucideSparkles,
   LucideVideo,
+  Send,
 } from "lucide-react";
 import AnswerDisplay from "./AnswerDisplay";
 import axios from "axios";
@@ -12,6 +14,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/app/services/Supabase";
 import ImageListTab from "./ImageListTab";
 import SourceListTab from "./SourceListTab";
+import { Button } from "@/components/ui/button";
 
 const tabs = [
   { label: "Answer", icon: LucideSparkles },
@@ -26,7 +29,7 @@ function DisplayResult({ searchInputRecord }) {
   const { libId } = useParams();
   const hasFetched = useRef(false); // prevent double call
   const [loadingSearch,setLoadingSearch]=useState(false);
-
+  const [userInput,setUserInput]=useState();
    useEffect(() => {
   if (!searchInputRecord) return;
 
@@ -58,8 +61,8 @@ function DisplayResult({ searchInputRecord }) {
     setLoadingSearch(true);
     await new Promise(resolve => setTimeout(resolve, 0));
     const result = await axios.post("/api/serp-api", {
-      searchInput: searchInputRecord?.searchInput,
-      searchType: searchInputRecord?.type,
+      searchInput:userInput ?? searchInputRecord?.searchInput,
+      searchType: searchInputRecord?.type ?? 'Search'
     });
   
    const searchResp = result.data;
@@ -185,6 +188,15 @@ function DisplayResult({ searchInputRecord }) {
           <hr className="my-5" />
         </div>
       ))}
+
+      <div className="bg-white w-full border rounded-lg
+       shadow-md p-3 px-5 justify-between fixed bottom-6  max-w-md lg:max-w-2 xl:max-w-3xl">
+        <input placeholder = 'Type Anything...' className='outline-none' 
+        onChange={(e)=>setUserInput(e.target.value)}/>
+       {userInput?.length && <Button onClick={GetSearchApiResult} disabled={loadingSearch}> {loadingSearch?<Loader2Icon className='animate-spin'/>:<Send/>}</Button>} 
+      </div>
+
+
     </div>
   );
 }
