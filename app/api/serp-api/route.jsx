@@ -10,6 +10,7 @@ export async function POST(req) {
     params: {
       engine: "google",
       q: searchInput,
+      num:5,
       api_key: process.env.SERPAPI_KEY,
     },
   });

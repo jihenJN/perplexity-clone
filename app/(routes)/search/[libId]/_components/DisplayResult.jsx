@@ -26,19 +26,19 @@ function DisplayResult({ searchInputRecord }) {
   const { libId } = useParams();
   useEffect(() => {
     //update this method
-    searchInputRecord?.Chats?.length === 0 && GetSearchApiResult();
+    searchInputRecord?.Chats?.length === 0 ? GetSearchApiResult() : GetSearchRecords();
 
     setSearchResult(searchInputRecord);
     console.log(searchInputRecord);
   }, [searchInputRecord]);
 
   const GetSearchApiResult = async () => {
-    // const result = await axios.post("/api/serp-api", {
-    //   searchInput: searchInputRecord?.searchInput,
-    //   searchType: searchInputRecord?.type,
-    // });
+    const result = await axios.post("/api/serp-api", {
+      searchInput: searchInputRecord?.searchInput,
+      searchType: searchInputRecord?.type,
+    });
     console.log(result.data);
-    const searchResp = SEARCH_RESULT;
+   const searchResp = result.data;
     //save to DB
     const formattedSearchResp = searchResp?.organic_results?.map(
       (item, index) => ({
@@ -67,6 +67,7 @@ function DisplayResult({ searchInputRecord }) {
       console.error("Supabase insert failed:", error);
       return; // stops here, GenerateAIResp never called
     }
+    await GetSearchRecords();
     await GenerateAIResp(formattedSearchResp, data[0].id);
     //Pass to LLM Model
   };
@@ -91,10 +92,20 @@ function DisplayResult({ searchInputRecord }) {
 
       if (runResp.data.data[0]?.status === "Completed") {
         console.log("Completed!!!");
+        await GetSearchRecords();
         clearInterval(interval);
         //get updated data from database
       }
     }, 1000);
+  };
+
+  const GetSearchRecords= async()=>{
+   let { data: Library, error } = await supabase
+         .from("Library")
+         .select("*,Chats(*)")
+         .eq("libId", libId);
+
+         setSearchResult(Library[0])
   };
 
   return (
