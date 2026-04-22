@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   LucideImage,
   LucideList,
@@ -22,15 +22,38 @@ const tabs = [
 
 function DisplayResult({ searchInputRecord }) {
   const [activeTab, setActiveTab] = useState("Answer");
-  const [searchResult, setSearchResult] = useState(SEARCH_RESULT);
+  const [searchResult, setSearchResult] = useState(searchInputRecord);
   const { libId } = useParams();
-  useEffect(() => {
-    //update this method
-    searchInputRecord?.Chats?.length === 0 ? GetSearchApiResult() : GetSearchRecords();
 
-    setSearchResult(searchInputRecord);
-    console.log(searchInputRecord);
-  }, [searchInputRecord]);
+  const hasFetched = useRef(false); // prevent double call
+
+
+   useEffect(() => {
+  if (!searchInputRecord) return;
+
+  const run = async () => {
+    if (searchInputRecord?.Chats?.length === 0) {
+      if (!hasFetched.current) {
+        hasFetched.current = true;
+        await GetSearchApiResult();
+      }
+    } else {
+      setSearchResult(searchInputRecord); // ✅ sync state from prop immediately
+    }
+  };
+
+  run();
+}, [searchInputRecord]);
+
+
+ 
+  // useEffect(() => {
+  //   //update this method
+  //   searchInputRecord?.Chats?.length === 0 ? GetSearchApiResult() : GetSearchRecords();
+
+  //   setSearchResult(searchInputRecord);
+  //   console.log(searchInputRecord);
+  // }, [searchInputRecord]);
 
   const GetSearchApiResult = async () => {
     const result = await axios.post("/api/serp-api", {
@@ -110,7 +133,7 @@ function DisplayResult({ searchInputRecord }) {
 
   return (
     <div className="mt-7">
-      {searchInputRecord?.Chats?.map((chat, index) => (
+      {searchResult?.Chats?.map((chat, index) => (
         <div key={index} className="mt-7">
           <h2 className="font-bold text-3xl line-clamp-2">
             {chat?.userSearchInput}
