@@ -59,7 +59,7 @@ function DisplayResult({ searchInputRecord }) {
 
   const GetSearchApiResult = async () => {
     setLoadingSearch(true);
-    await new Promise(resolve => setTimeout(resolve, 0));
+   // await new Promise(resolve => setTimeout(resolve, 0));
     const result = await axios.post("/api/serp-api", {
       searchInput:userInput ?? searchInputRecord?.searchInput,
       searchType: searchInputRecord?.type ?? 'Search'
