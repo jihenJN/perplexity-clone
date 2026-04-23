@@ -131,7 +131,8 @@ function DisplayResult({ searchInputRecord }) {
    let { data: Library, error } = await supabase
          .from("Library")
          .select("*,Chats(*)")
-         .eq("libId", libId);
+         .eq("libId", libId)
+         .order('id',{foreignTable:'Chats', ascending:true});
 
          setSearchResult(Library[0]);
          
@@ -190,7 +191,7 @@ function DisplayResult({ searchInputRecord }) {
       ))}
 
       <div className="bg-white w-full border rounded-lg
-       shadow-md p-3 px-5 justify-between fixed bottom-6  max-w-md lg:max-w-2 xl:max-w-3xl">
+       shadow-md p-3 px-5 flex  justify-between fixed bottom-6  max-w-md lg:max-w-2 xl:max-w-3xl">
         <input placeholder = 'Type Anything...' className='outline-none' 
         onChange={(e)=>setUserInput(e.target.value)}/>
        {userInput?.length && <Button onClick={GetSearchApiResult} disabled={loadingSearch}> {loadingSearch?<Loader2Icon className='animate-spin'/>:<Send/>}</Button>} 
