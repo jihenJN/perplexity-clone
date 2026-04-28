@@ -81,12 +81,12 @@ function AppSidebar() {
              
             {user ? (
                 <SignOutButton>
-                <Button className="rounded-full mx-4 mt-4">log out</Button>
+                <Button className="rounded-full p-1.5 mx-4 mt-4 text-xl">log out</Button>
               </SignOutButton>
              
             ) : (
                <SignUpButton mode="modal">
-                <Button className="rounded-full mx-4 mt-4">sign up</Button>
+                <Button className="rounded-full p-1.5 mx-4 mt-4 text-xl">sign up</Button>
               </SignUpButton>
            
             )}

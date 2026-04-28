@@ -60,7 +60,7 @@ function ChatInputBox() {
         width={250}
         height={200}
       />
-      <div className="p-5 w-full max-w-2xl border rounded-2xl mt-10">
+      <div className="p-5 w-full max-w-2xl border rounded-2xl mt-10 ">
         <div className="flex  justify-between items-end ">
           <Tabs defaultValue="search" className="w-[400px]">
             <TabsContent value="search">
@@ -68,7 +68,7 @@ function ChatInputBox() {
                 type="text"
                 placeholder="Ask Anything..."
                 onChange={(e) => setUserSearchInput(e.target.value)}
-                className="w-full p-2 outline-none"
+                className="w-full text-xl p-2 outline-none"
               />
             </TabsContent>
             <TabsContent value="research">
@@ -76,7 +76,7 @@ function ChatInputBox() {
                 type="text"
                 placeholder="Research Anything..."
                 onChange={(e) => setUserSearchInput(e.target.value)}
-                className="w-full p-2 outline-none"
+                className="w-full text-xl p-2 outline-none"
               />
             </TabsContent>
             <TabsList>
