@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import AnswerDisplay from "./AnswerDisplay";
 import axios from "axios";
-import { SEARCH_RESULT } from "@/app/services/Shared";
 import { useParams } from "next/navigation";
 import { supabase } from "@/app/services/Supabase";
 import ImageListTab from "./ImageListTab";
@@ -26,65 +25,62 @@ const tabs = [
 function DisplayResult({ searchInputRecord }) {
   const [activeTab, setActiveTab] = useState("Answer");
   const [searchResult, setSearchResult] = useState(searchInputRecord);
+  const [aiResp, setAiResp] = useState(""); // ✅ added here
+  const [loadingSearch, setLoadingSearch] = useState(false);
+  const [userInput, setUserInput] = useState();
   const { libId } = useParams();
-  const hasFetched = useRef(false); // prevent double call
-  const [loadingSearch,setLoadingSearch]=useState(false);
-  const [userInput,setUserInput]=useState();
-   useEffect(() => {
-  if (!searchInputRecord) return;
+  const hasFetched = useRef(false);
 
-  const run = async () => {
-    if (searchInputRecord?.Chats?.length === 0) {
-      if (!hasFetched.current) {
-        hasFetched.current = true;
-        await GetSearchApiResult();
+  useEffect(() => {
+    if (!searchInputRecord) return;
+
+    const run = async () => {
+      if (searchInputRecord?.Chats?.length === 0) {
+        if (!hasFetched.current) {
+          hasFetched.current = true;
+          await GetSearchApiResult();
+        }
+      } else {
+        setSearchResult(searchInputRecord);
+
+        // ✅ If aiResp already saved in Supabase, load it directly
+        const existingResp = searchInputRecord?.Chats?.[0]?.aiResp;
+        if (existingResp) {
+          setAiResp(existingResp);
+        }
       }
-    } else {
-      setSearchResult(searchInputRecord); // ✅ sync state from prop immediately
-    }
-  };
+    };
 
-  run();
-}, [searchInputRecord]);
-
-
- 
-  // useEffect(() => {
-  //   //update this method
-  //   searchInputRecord?.Chats?.length === 0 ? GetSearchApiResult() : GetSearchRecords();
-
-  //   setSearchResult(searchInputRecord);
-  //   console.log(searchInputRecord);
-  // }, [searchInputRecord]);
+    run();
+  }, [searchInputRecord]);
 
   const GetSearchApiResult = async () => {
     setLoadingSearch(true);
-   // await new Promise(resolve => setTimeout(resolve, 0));
-    const result = await axios.post("/api/serp-api", {
-      searchInput:userInput ?? searchInputRecord?.searchInput,
-      searchType: searchInputRecord?.type ?? 'Search'
-    });
-  
-   const searchResp = result.data;
-    //save to DB
-    const formattedSearchResp = searchResp?.organic_results?.map(
-      (item, index) => ({
-        title: item?.title,
-        description: item?.about_this_result?.source?.description,
-        img: item?.about_this_result?.source?.icon,
-        url: item?.link,
-        thumbnail: item?.thumbnail,
-      }),
-    );
+    setAiResp(""); // ✅ reset before new search
 
-    //Fetch Latest From DB
+    const result = await axios.post("/api/serp-api", {
+      searchInput: userInput ?? searchInputRecord?.searchInput,
+      searchType: searchInputRecord?.type ?? "Search",
+    });
+
+    const searchResp = result.data;
+
+    const formattedSearchResp = searchResp?.organic_results?.map((item) => ({
+      title: item?.title,
+      description: item?.about_this_result?.source?.description,
+      img: item?.about_this_result?.source?.icon,
+      url: item?.link,
+      thumbnail: item?.thumbnail,
+    }));
+
+    // ✅ Save search results to Supabase
     const { data, error } = await supabase
       .from("Chats")
       .insert([
         {
           libId: libId,
           searchResult: formattedSearchResp,
-          userSearchInput: searchInputRecord?.searchInput,
+          userSearchInput: userInput ?? searchInputRecord?.searchInput,
         },
       ])
       .select();
@@ -92,72 +88,86 @@ function DisplayResult({ searchInputRecord }) {
     if (error || !data?.length) {
       console.error("Supabase insert failed:", error);
       setLoadingSearch(false);
-      return; // stops here, GenerateAIResp never called
+      return;
     }
+
     await GetSearchRecords();
     setLoadingSearch(false);
-    await GenerateAIResp(formattedSearchResp, data[0].id);
-    //Pass to LLM Model
+
+    // ✅ Stream AI response directly (no more Inngest!)
+    await streamAIResponse(formattedSearchResp, data[0].id);
   };
 
-  const GenerateAIResp = async (formattedSearchResp, recordId) => {
-    const result = await axios.post("/api/llm-model", {
-      searchInput: searchInputRecord?.searchInput,
-      searchResult: formattedSearchResp,
-      recordId: recordId,
+  // ✅ New streaming function replaces GenerateAIResp
+  const streamAIResponse = async (formattedSearchResp, chatId) => {
+    if (!chatId) {
+      console.error("No chat ID");
+      return;
+    }
+
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        searchInput: userInput ?? searchInputRecord?.searchInput,
+        searchResult: formattedSearchResp,
+      }),
     });
 
-    const runId = result.data;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = "";
 
-    console.log(runId);
-    // // small delay to let Inngest register the run
-    // await new Promise((res) => setTimeout(res, 1000));
+    // ✅ This updates UI word by word
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      fullText += chunk;
+      setAiResp(fullText);
+    }
 
-    const interval = setInterval(async () => {
-      const runResp = await axios.post("/api/get-inngest-status", {
-        runId: runId,
-      });
-
-      if (runResp.data.data[0]?.status === "Completed") {
-        console.log("Completed!!!");
-        await GetSearchRecords();
-        clearInterval(interval);
-        //get updated data from database
-      }
-    }, 1000);
+    // ✅ Save full response to Supabase when done
+    await supabase
+      .from("Chats")
+      .update({ aiResp: fullText })
+      .eq("id", chatId);
   };
 
-  const GetSearchRecords= async()=>{
-   let { data: Library, error } = await supabase
-         .from("Library")
-         .select("*,Chats(*)")
-         .eq("libId", libId)
-         .order('id',{foreignTable:'Chats', ascending:true});
+  const GetSearchRecords = async () => {
+    let { data: Library } = await supabase
+      .from("Library")
+      .select("*,Chats(*)")
+      .eq("libId", libId)
+      .order("id", { foreignTable: "Chats", ascending: true });
 
-         setSearchResult(Library[0]);
-         
-
+    setSearchResult(Library[0]);
   };
 
   return (
     <div className="mt-7">
-        {!searchResult && 
-      <div>
-        <div className='w-full h-4 animate-pulse bg-accent rounded-md'> </div>
-         <div className='w-1/2 mt-2 h-4 animate-pulse bg-accent rounded-md'> </div>
-          <div className='w-[70%] mt-2 h-4 animate-pulse bg-accent rounded-md'> </div>
-      </div>}
+      {!searchResult && (
+        <div>
+          <div className="w-full h-4 animate-pulse bg-accent rounded-md"></div>
+          <div className="w-1/2 mt-2 h-4 animate-pulse bg-accent rounded-md"></div>
+          <div className="w-[70%] mt-2 h-4 animate-pulse bg-accent rounded-md"></div>
+        </div>
+      )}
+
       {searchResult?.Chats?.map((chat, index) => (
         <div key={index} className="mt-7">
           <h2 className="font-bold text-3xl line-clamp-2">
             {chat?.userSearchInput}
           </h2>
+
           <div className="flex items-center space-x-6 border-b border-gray-200 pb-2 mt-6">
             {tabs.map(({ label, icon: Icon, badge }) => (
               <button
                 key={label}
                 onClick={() => setActiveTab(label)}
-                className={`flex items-center gap-1 relative text-sm font-medium text-gray-700 hover:text-black ${activeTab === label ? "text-black" : ""}`}
+                className={`flex items-center gap-1 relative text-sm font-medium text-gray-700 hover:text-black ${
+                  activeTab === label ? "text-black" : ""
+                }`}
               >
                 <Icon className="w-4 h-4" />
                 <span>{label}</span>
@@ -166,7 +176,6 @@ function DisplayResult({ searchInputRecord }) {
                     {badge}
                   </span>
                 )}
-
                 {activeTab === label && (
                   <span className="absolute -bottom-2 left-0 w-full h-0.5 bg-black rounded"></span>
                 )}
@@ -178,26 +187,31 @@ function DisplayResult({ searchInputRecord }) {
           </div>
 
           <div>
-            {activeTab === "Answer" ? 
-            (<AnswerDisplay chat={chat} loadingSearch={loadingSearch}/>) : 
-             activeTab === "Images" ? 
-             (<ImageListTab chat={chat} />) : 
-             activeTab === "Sources" ? 
-             (<SourceListTab chat={chat}/>):
-             null}
+            {activeTab === "Answer" ? (
+              // ✅ pass aiResp from state, not from chat object
+              <AnswerDisplay chat={chat} loadingSearch={loadingSearch} aiResp={aiResp} />
+            ) : activeTab === "Images" ? (
+              <ImageListTab chat={chat} />
+            ) : activeTab === "Sources" ? (
+              <SourceListTab chat={chat} />
+            ) : null}
           </div>
           <hr className="my-5" />
         </div>
       ))}
 
-      <div className="bg-white w-full border rounded-lg
-       shadow-md p-3 px-5 flex  justify-between fixed bottom-6  max-w-md lg:max-w-2 xl:max-w-3xl">
-        <input placeholder = 'Type Anything...' className='outline-none' 
-        onChange={(e)=>setUserInput(e.target.value)}/>
-       {userInput?.length && <Button onClick={GetSearchApiResult} disabled={loadingSearch}> {loadingSearch?<Loader2Icon className='animate-spin'/>:<Send/>}</Button>} 
+      <div className="bg-white w-full border rounded-lg shadow-md p-3 px-5 flex justify-between fixed bottom-6 max-w-md lg:max-w-2 xl:max-w-3xl">
+        <input
+          placeholder="Type Anything..."
+          className="outline-none"
+          onChange={(e) => setUserInput(e.target.value)}
+        />
+        {userInput?.length && (
+          <Button onClick={GetSearchApiResult} disabled={loadingSearch}>
+            {loadingSearch ? <Loader2Icon className="animate-spin" /> : <Send />}
+          </Button>
+        )}
       </div>
-
-
     </div>
   );
 }

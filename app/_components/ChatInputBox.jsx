@@ -50,7 +50,7 @@ function ChatInputBox() {
     setLoading(false);
     //redirect to new screen
     router.push('/search/'+libId);
-    console.log(data[0]);
+   console.log(data[0]);
   };
   return (
     <div className=" flex flex-col items-center h-screen justify-center ">
