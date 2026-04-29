@@ -30,6 +30,7 @@ function DisplayResult({ searchInputRecord }) {
   const [userInput, setUserInput] = useState();
   const { libId } = useParams();
   const hasFetched = useRef(false);
+  const [isStreaming, setIsStreaming] = useState(false); // ✅ add this
 
   useEffect(() => {
     if (!searchInputRecord) return;
@@ -99,40 +100,49 @@ function DisplayResult({ searchInputRecord }) {
   };
 
   // ✅ New streaming function replaces GenerateAIResp
-  const streamAIResponse = async (formattedSearchResp, chatId) => {
-    if (!chatId) {
-      console.error("No chat ID");
-      return;
-    }
+const streamAIResponse = async (formattedSearchResp, chatId) => {
+  if (!chatId) return;
 
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        searchInput: userInput ?? searchInputRecord?.searchInput,
-        searchResult: formattedSearchResp,
-      }),
-    });
+  setIsStreaming(true); // ✅ streaming started
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let fullText = "";
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      searchInput: userInput ?? searchInputRecord?.searchInput,
+      searchResult: formattedSearchResp,
+    }),
+  });
 
-    // ✅ This updates UI word by word
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value);
-      fullText += chunk;
-      setAiResp(fullText);
-    }
+  // ✅ Handle error responses
+  if (!res.ok) {
+    const errorMsg = await res.text();
+    setAiResp(errorMsg); // ← shows the error message in the UI
+    setIsStreaming(false);
+    return;
+  }
 
-    // ✅ Save full response to Supabase when done
-    await supabase
-      .from("Chats")
-      .update({ aiResp: fullText })
-      .eq("id", chatId);
-  };
+
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8", { stream: true });
+  let fullText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    fullText += chunk;
+    setAiResp(fullText);
+  }
+
+  setIsStreaming(false); // ✅ streaming finished
+
+  await supabase
+    .from("Chats")
+    .update({ aiResp: fullText })
+    .eq("id", chatId);
+};
 
   const GetSearchRecords = async () => {
     let { data: Library } = await supabase
@@ -189,7 +199,7 @@ function DisplayResult({ searchInputRecord }) {
           <div>
             {activeTab === "Answer" ? (
               // ✅ pass aiResp from state, not from chat object
-              <AnswerDisplay chat={chat} loadingSearch={loadingSearch} aiResp={aiResp} />
+              <AnswerDisplay chat={chat} loadingSearch={loadingSearch} aiResp={aiResp}   isStreaming={isStreaming}/>
             ) : activeTab === "Images" ? (
               <ImageListTab chat={chat} />
             ) : activeTab === "Sources" ? (
