@@ -25,12 +25,12 @@ const tabs = [
 function DisplayResult({ searchInputRecord }) {
   const [activeTab, setActiveTab] = useState("Answer");
   const [searchResult, setSearchResult] = useState(searchInputRecord);
-  const [aiResp, setAiResp] = useState(""); // ✅ added here
+  const [streamingAiResp, setStreamingAiResp] = useState("");
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [userInput, setUserInput] = useState();
   const { libId } = useParams();
   const hasFetched = useRef(false);
-  const [isStreaming, setIsStreaming] = useState(false); // ✅ add this
+  const [isStreaming, setIsStreaming] = useState(false);
 
   useEffect(() => {
     if (!searchInputRecord) return;
@@ -42,13 +42,7 @@ function DisplayResult({ searchInputRecord }) {
           await GetSearchApiResult();
         }
       } else {
-        setSearchResult(searchInputRecord);
-
-        // ✅ If aiResp already saved in Supabase, load it directly
-        const existingResp = searchInputRecord?.Chats?.[0]?.aiResp;
-        if (existingResp) {
-          setAiResp(existingResp);
-        }
+        setSearchResult(searchInputRecord); // chat.aiResp already inside each chat
       }
     };
 
@@ -57,7 +51,7 @@ function DisplayResult({ searchInputRecord }) {
 
   const GetSearchApiResult = async () => {
     setLoadingSearch(true);
-    setAiResp(""); // ✅ reset before new search
+    setStreamingAiResp("");
 
     const result = await axios.post("/api/serp-api", {
       searchInput: userInput ?? searchInputRecord?.searchInput,
@@ -74,7 +68,6 @@ function DisplayResult({ searchInputRecord }) {
       thumbnail: item?.thumbnail,
     }));
 
-    // ✅ Save search results to Supabase
     const { data, error } = await supabase
       .from("Chats")
       .insert([
@@ -95,54 +88,52 @@ function DisplayResult({ searchInputRecord }) {
     await GetSearchRecords();
     setLoadingSearch(false);
 
-    // ✅ Stream AI response directly (no more Inngest!)
     await streamAIResponse(formattedSearchResp, data[0].id);
   };
 
-  // ✅ New streaming function replaces GenerateAIResp
-const streamAIResponse = async (formattedSearchResp, chatId) => {
-  if (!chatId) return;
+  const streamAIResponse = async (formattedSearchResp, chatId) => {
+    if (!chatId) return;
 
-  setIsStreaming(true); // ✅ streaming started
+    setIsStreaming(true);
 
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      searchInput: userInput ?? searchInputRecord?.searchInput,
-      searchResult: formattedSearchResp,
-    }),
-  });
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        searchInput: userInput ?? searchInputRecord?.searchInput,
+        searchResult: formattedSearchResp,
+      }),
+    });
 
-  // ✅ Handle error responses
-  if (!res.ok) {
-    const errorMsg = await res.text();
-    setAiResp(errorMsg); // ← shows the error message in the UI
+    if (!res.ok) {
+      const errorMsg = await res.text();
+      setStreamingAiResp(errorMsg);
+      setIsStreaming(false);
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder("utf-8", { stream: true });
+    let fullText = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      fullText += chunk;
+      setStreamingAiResp(fullText);
+    }
+
     setIsStreaming(false);
-    return;
-  }
 
+    await supabase
+      .from("Chats")
+      .update({ aiResp: fullText })
+      .eq("id", chatId);
 
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder("utf-8", { stream: true });
-  let fullText = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    fullText += chunk;
-    setAiResp(fullText);
-  }
-
-  setIsStreaming(false); // ✅ streaming finished
-
-  await supabase
-    .from("Chats")
-    .update({ aiResp: fullText })
-    .eq("id", chatId);
-};
+    // ✅ Refresh so the last chat now has aiResp from DB
+    await GetSearchRecords();
+  };
 
   const GetSearchRecords = async () => {
     let { data: Library } = await supabase
@@ -164,51 +155,65 @@ const streamAIResponse = async (formattedSearchResp, chatId) => {
         </div>
       )}
 
-      {searchResult?.Chats?.map((chat, index) => (
-        <div key={index} className="mt-7">
-          <h2 className="font-bold text-3xl line-clamp-2">
-            {chat?.userSearchInput}
-          </h2>
+      {searchResult?.Chats?.map((chat, index) => {
+        const isLastChat = index === searchResult.Chats.length - 1;
 
-          <div className="flex items-center space-x-6 border-b border-gray-200 pb-2 mt-6">
-            {tabs.map(({ label, icon: Icon, badge }) => (
-              <button
-                key={label}
-                onClick={() => setActiveTab(label)}
-                className={`flex items-center gap-1 relative text-sm font-medium text-gray-700 hover:text-black ${
-                  activeTab === label ? "text-black" : ""
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{label}</span>
-                {badge && (
-                  <span className="ml-1 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                    {badge}
-                  </span>
-                )}
-                {activeTab === label && (
-                  <span className="absolute -bottom-2 left-0 w-full h-0.5 bg-black rounded"></span>
-                )}
-              </button>
-            ))}
-            <div className="ml-auto text-sm text-gray-500">
-              1 task <span className="ml-1">🡥</span>
+        // During streaming use live buffer, otherwise use saved DB value
+        const resolvedAiResp =
+          isLastChat && (isStreaming || !chat.aiResp)
+            ? streamingAiResp
+            : chat.aiResp;
+
+        return (
+          <div key={index} className="mt-7">
+            <h2 className="font-bold text-3xl line-clamp-2">
+              {chat?.userSearchInput}
+            </h2>
+
+            <div className="flex items-center space-x-6 border-b border-gray-200 pb-2 mt-6">
+              {tabs.map(({ label, icon: Icon, badge }) => (
+                <button
+                  key={label}
+                  onClick={() => setActiveTab(label)}
+                  className={`flex items-center gap-1 relative text-sm font-medium text-gray-700 hover:text-black ${
+                    activeTab === label ? "text-black" : ""
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{label}</span>
+                  {badge && (
+                    <span className="ml-1 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                      {badge}
+                    </span>
+                  )}
+                  {activeTab === label && (
+                    <span className="absolute -bottom-2 left-0 w-full h-0.5 bg-black rounded"></span>
+                  )}
+                </button>
+              ))}
+              <div className="ml-auto text-sm text-gray-500">
+                1 task <span className="ml-1">🡥</span>
+              </div>
             </div>
-          </div>
 
-          <div>
-            {activeTab === "Answer" ? (
-              // ✅ pass aiResp from state, not from chat object
-              <AnswerDisplay chat={chat} loadingSearch={loadingSearch} aiResp={aiResp}   isStreaming={isStreaming}/>
-            ) : activeTab === "Images" ? (
-              <ImageListTab chat={chat} />
-            ) : activeTab === "Sources" ? (
-              <SourceListTab chat={chat} />
-            ) : null}
+            <div>
+              {activeTab === "Answer" ? (
+                <AnswerDisplay
+                  chat={chat}
+                  loadingSearch={loadingSearch}
+                  aiResp={resolvedAiResp}
+                  isStreaming={isLastChat && isStreaming}
+                />
+              ) : activeTab === "Images" ? (
+                <ImageListTab chat={chat} />
+              ) : activeTab === "Sources" ? (
+                <SourceListTab chat={chat} />
+              ) : null}
+            </div>
+            <hr className="my-5" />
           </div>
-          <hr className="my-5" />
-        </div>
-      ))}
+        );
+      })}
 
       <div className="bg-white w-full border rounded-lg shadow-md p-3 px-5 flex justify-between fixed bottom-6 max-w-md lg:max-w-2 xl:max-w-3xl">
         <input
