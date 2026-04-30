@@ -14,6 +14,7 @@ import { supabase } from "@/app/services/Supabase";
 import ImageListTab from "./ImageListTab";
 import SourceListTab from "./SourceListTab";
 import { Button } from "@/components/ui/button";
+import VideoListTab from "./VideoListTab";
 
 const tabs = [
   { label: "Answer", icon: LucideSparkles },
@@ -206,7 +207,9 @@ function DisplayResult({ searchInputRecord }) {
                 />
               ) : activeTab === "Images" ? (
                 <ImageListTab chat={chat} />
-              ) : activeTab === "Sources" ? (
+              ) : activeTab === "Videos" ? (
+                <VideoListTab chat={chat}/>)
+              : activeTab === "Sources" ? (
                 <SourceListTab chat={chat} />
               ) : null}
             </div>
