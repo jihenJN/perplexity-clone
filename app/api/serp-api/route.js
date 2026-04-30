@@ -1,4 +1,3 @@
-//import SearchQueryResult from "@/app/(routes)/search/[libId]/page";
 import axios from "axios";
 import { NextResponse } from "next/server";
 
