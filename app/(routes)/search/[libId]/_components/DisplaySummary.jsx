@@ -1,47 +1,10 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import Markdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-function DisplaySummary({ aiResp }) {
-  const [displayedText, setDisplayedText] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const indexRef = useRef(0);
-  const intervalRef = useRef(null);
-
-  useEffect(() => {
-    // ✅ Reset on new search
-    if (!aiResp) {
-      setDisplayedText("");
-      setIsTyping(false);
-      indexRef.current = 0;
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
-
-    // ✅ Kill any previous interval before starting new one
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    setIsTyping(true);
-
-    intervalRef.current = setInterval(() => {
-      const currentIndex = indexRef.current;
-
-      if (currentIndex < aiResp.length) {
-        // ✅ Always slice from the FULL aiResp string — never append chunks
-        setDisplayedText(aiResp.slice(0, currentIndex + 1));
-        indexRef.current = currentIndex + 1;
-      } else {
-        // ✅ Caught up — pause and wait for more text
-        clearInterval(intervalRef.current);
-        setIsTyping(false);
-      }
-    }, 5); // ← 5ms = fast typing speed
-
-    return () => clearInterval(intervalRef.current);
-  }, [aiResp]);
-
+function DisplaySummary({ aiResp, isStreaming }) {
   return (
     <div className="mt-7">
       {!aiResp && (
@@ -52,7 +15,10 @@ function DisplaySummary({ aiResp }) {
         </div>
       )}
 
-      <div className="relative">
+      <div
+        className="relative transition-opacity duration-500"
+        style={{ opacity: aiResp ? 1 : 0 }}
+      >
         <Markdown
           components={{
             h1: ({ ...props }) => (
@@ -68,7 +34,7 @@ function DisplaySummary({ aiResp }) {
               <p className="text-gray-700 leading-7 mb-4" {...props} />
             ),
             a: ({ ...props }) => (
-              <a className="text-blue-600 hover:underline" target="_blank" rel="noreferrer" {...props}></a>
+              <a className="text-blue-600 hover:underline" target="_blank" rel="noreferrer" {...props} />
             ),
             ul: ({ ...props }) => (
               <ul className="list-disc pl-5 space-y-1 text-gray-700" {...props} />
@@ -105,11 +71,11 @@ function DisplaySummary({ aiResp }) {
             },
           }}
         >
-          {displayedText}
+          {aiResp}
         </Markdown>
 
-        {/* ✅ Blinking cursor while typing */}
-        {isTyping && (
+        {/* ✅ Blinking cursor only while streaming */}
+        {isStreaming && (
           <span className="inline-block w-[2px] h-4 bg-gray-800 ml-0.5 animate-pulse align-middle" />
         )}
       </div>
