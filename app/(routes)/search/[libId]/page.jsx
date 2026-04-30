@@ -69,7 +69,7 @@ function SearchQueryResult() {
   return (
     <div>
       <Header searchInputRecord={searchInputRecord} />
-      <div className="px-10 md:px-20 lg:px-36 xl:px-56 mt-20">
+      <div className="px-10 md:px-20 lg:px-36 xl:px-56 mt-20 mb-25">
         <DisplayResult searchInputRecord={searchInputRecord} aiResp={aiResp} />
       </div>
     </div>

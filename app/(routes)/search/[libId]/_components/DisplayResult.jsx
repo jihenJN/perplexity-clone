@@ -218,7 +218,7 @@ function DisplayResult({ searchInputRecord }) {
       <div className="bg-white w-full border rounded-lg shadow-md p-3 px-5 flex justify-between fixed bottom-6 max-w-md lg:max-w-2 xl:max-w-3xl">
         <input
           placeholder="Type Anything..."
-          className="outline-none"
+          className="outline-none w-full"
           onChange={(e) => setUserInput(e.target.value)}
         />
         {userInput?.length && (
