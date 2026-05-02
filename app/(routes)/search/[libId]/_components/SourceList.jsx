@@ -1,28 +1,53 @@
-import React from 'react'
 import Image from 'next/image';
-function SourceList({WebResult,loadingSearch}) {
-  return (
-  <div className='flex gap-2 flex-wrap mt-5'>
-  {!loadingSearch && WebResult?.map((item, index) => (
-    <div key={index} className='p-3 bg-accent rounded-lg w-[200px] cursor-pointer hover:bg-[#e1e3da]'
-      onClick={() => window.open(item.url, '_blank')}>
-      <div className='flex gap-2 items-center'>
-        <Image src={item?.img||"/fallback-img.svg"} alt={item?.title || "no-image"} width={20} height={20} />
-        <h2 className='text-xs'>{item?.title}</h2>
-      </div>
-      <h2 className='line-clamp-2 text-black text-xs'>{item?.description}</h2>
-    </div>
-  ))}
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel';
 
-  {loadingSearch && (
-    <div className='flex flex-wrap gap-2'>
-      {[1, 2, 3, 4].map((item, index) => (
-        <div className='w-[200px] h-[100px] rounded-2xl bg-accent animate-pulse' key={index} />
+function SourceList({ WebResult, loadingSearch }) {
+  if (loadingSearch) return (
+    <div className="flex gap-2 mt-5">
+      {[1, 2, 3, 4].map(i => (
+        <div key={i} className="flex-1 h-[72px] rounded-xl bg-accent animate-pulse" />
       ))}
     </div>
-  )}
-</div>
-  )
+  );
+
+  return (
+    <div className="flex items-center gap-2 mt-5 max-w-3xl">
+      {/* arrows outside, same row */}
+      <Carousel className="flex-1 min-w-0" opts={{ align: 'start', dragFree: true }}>
+        <div className="flex items-center gap-2">
+          <CarouselPrevious className="static translate-y-0 flex-shrink-0" />
+          <CarouselContent className="-ml-2.5">
+            {WebResult?.map((item, index) => (
+              <CarouselItem key={index} className="pl-2.5 basis-full sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
+                <div
+                  onClick={() => window.open(item.url, '_blank')}
+                  className="p-3 bg-accent rounded-lg cursor-pointer hover:bg-[#e1e3da] transition-colors"
+                >
+                  <div className="flex gap-2 items-center mb-1">
+                    <Image
+                      src={item?.img || '/fallback-img.svg'}
+                      alt={item?.title || 'source'}
+                      width={16}
+                      height={16}
+                    />
+                    <h2 className="text-xs font-medium truncate">{item?.title}</h2>
+                  </div>
+                  <p className="line-clamp-2 text-xs text-gray-500">{item?.description}</p>
+                </div>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <CarouselNext className="static translate-y-0 flex-shrink-0" />
+        </div>
+      </Carousel>
+    </div>
+  );
 }
 
-export default SourceList
+export default SourceList;
