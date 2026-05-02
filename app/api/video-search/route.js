@@ -13,7 +13,7 @@ export async function POST(req) {
     params: {
       engine: "google_videos_light",
       q: searchInput,
-      num: 20,
+      num: 10,
       api_key: process.env.SERPAPI_KEY,
     },
   });

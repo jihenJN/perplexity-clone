@@ -10,9 +10,9 @@ export async function POST(req) {
 
   const result = await axios.get("https://serpapi.com/search", {
     params: {
-      engine: "google_images",
+      engine: "google_images_light",
       q: searchInput,
-      num: 20,
+      num: 10,
       api_key: process.env.SERPAPI_KEY,
     },
   });

@@ -23,6 +23,25 @@ const tabs = [
   { label: "Sources", icon: LucideList, badge: 10 },
 ];
 
+function extractFollowUps(markdown = "") {
+  const match = markdown.match(
+    /##\s*Related Questions\s*\n([\s\S]*?)(?=\n##|$)/i,
+  );
+
+  if (!match) return { cleanAnswer: markdown, followUps: [] };
+
+  const followUps = match[1]
+    .split("\n")
+    .map((l) => l.replace(/^[-*\d.]\s*/, "").trim())
+    .filter(Boolean);
+
+  const cleanAnswer = markdown
+    .replace(/##\s*Related Questions[\s\S]*$/i, "")
+    .trimEnd();
+
+  return { cleanAnswer, followUps };
+}
+
 function DisplayResult({ searchInputRecord }) {
   const [activeTab, setActiveTab] = useState("Answer");
   const [searchResult, setSearchResult] = useState(searchInputRecord);
@@ -32,7 +51,7 @@ function DisplayResult({ searchInputRecord }) {
   const { libId } = useParams();
   const hasFetched = useRef(false);
   const [isStreaming, setIsStreaming] = useState(false);
-
+  const [followUps, setFollowUps] = useState([]);
   useEffect(() => {
     if (!searchInputRecord) return;
 
@@ -50,12 +69,17 @@ function DisplayResult({ searchInputRecord }) {
     run();
   }, [searchInputRecord]);
 
-  const GetSearchApiResult = async () => {
+  const GetSearchApiResult = async (overrideInput) => {
+    const query = overrideInput ?? userInput ?? searchInputRecord?.searchInput;
+    setFollowUps([]); // clear previous follow-ups
     setLoadingSearch(true);
     setStreamingAiResp("");
 
-    const result = await axios.post("/api/serp-api", {
-      searchInput: userInput ?? searchInputRecord?.searchInput,
+    setLoadingSearch(true);
+    setStreamingAiResp("");
+
+    const result = await axios.post("/api/web-search", {
+      searchInput: query,
       searchType: searchInputRecord?.type ?? "Search",
     });
 
@@ -75,7 +99,7 @@ function DisplayResult({ searchInputRecord }) {
         {
           libId: libId,
           searchResult: formattedSearchResp,
-          userSearchInput: userInput ?? searchInputRecord?.searchInput,
+          userSearchInput: query,
         },
       ])
       .select();
@@ -89,10 +113,10 @@ function DisplayResult({ searchInputRecord }) {
     await GetSearchRecords();
     setLoadingSearch(false);
 
-    await streamAIResponse(formattedSearchResp, data[0].id);
+    await streamAIResponse(formattedSearchResp, data[0].id ,query);
   };
 
-  const streamAIResponse = async (formattedSearchResp, chatId) => {
+  const streamAIResponse = async (formattedSearchResp, chatId ,query) => {
     if (!chatId) return;
 
     setIsStreaming(true);
@@ -101,7 +125,7 @@ function DisplayResult({ searchInputRecord }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        searchInput: userInput ?? searchInputRecord?.searchInput,
+        searchInput: query,
         searchResult: formattedSearchResp,
       }),
     });
@@ -122,15 +146,20 @@ function DisplayResult({ searchInputRecord }) {
       if (done) break;
       const chunk = decoder.decode(value, { stream: true });
       fullText += chunk;
+
+      // Strip follow-ups section live so it never shows in the answer
+      const { cleanAnswer } = extractFollowUps(fullText);
+
       setStreamingAiResp(fullText);
     }
 
     setIsStreaming(false);
 
-    await supabase
-      .from("Chats")
-      .update({ aiResp: fullText })
-      .eq("id", chatId);
+    // Extract follow-ups from the complete response
+    const { cleanAnswer, followUps: parsed } = extractFollowUps(fullText);
+    setFollowUps(parsed);
+
+    await supabase.from("Chats").update({ aiResp: fullText }).eq("id", chatId);
 
     // ✅ Refresh so the last chat now has aiResp from DB
     await GetSearchRecords();
@@ -164,6 +193,11 @@ function DisplayResult({ searchInputRecord }) {
           isLastChat && (isStreaming || !chat.aiResp)
             ? streamingAiResp
             : chat.aiResp;
+
+        const resolvedFollowUps =
+          isLastChat && followUps.length > 0
+            ? followUps
+            : extractFollowUps(chat.aiResp ?? "").followUps; // restore on page reload
 
         return (
           <div key={index} className="mt-7">
@@ -204,12 +238,14 @@ function DisplayResult({ searchInputRecord }) {
                   loadingSearch={loadingSearch}
                   aiResp={resolvedAiResp}
                   isStreaming={isLastChat && isStreaming}
+                  followUps={resolvedFollowUps}
+                   onFollowUp={(question) => GetSearchApiResult(question)}
                 />
               ) : activeTab === "Images" ? (
                 <ImageListTab chat={chat} />
               ) : activeTab === "Videos" ? (
-                <VideoListTab chat={chat}/>)
-              : activeTab === "Sources" ? (
+                <VideoListTab chat={chat} />
+              ) : activeTab === "Sources" ? (
                 <SourceListTab chat={chat} />
               ) : null}
             </div>
@@ -225,8 +261,12 @@ function DisplayResult({ searchInputRecord }) {
           onChange={(e) => setUserInput(e.target.value)}
         />
         {userInput?.length && (
-          <Button onClick={GetSearchApiResult} disabled={loadingSearch}>
-            {loadingSearch ? <Loader2Icon className="animate-spin" /> : <Send />}
+          <Button onClick={()=>GetSearchApiResult()} disabled={loadingSearch}>
+            {loadingSearch ? (
+              <Loader2Icon className="animate-spin" />
+            ) : (
+              <Send />
+            )}
           </Button>
         )}
       </div>

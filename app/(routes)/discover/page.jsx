@@ -29,7 +29,7 @@ function Discover() {
   }, [selectedOption]);
 
   const GetSearchResult = async () => {
-    const result = await axios.post("/api/serp-api", {
+    const result = await axios.post("/api/web-search", {
       searchInput: selectedOption + "Latest News & Updates",
       searchType: "Search",
     });

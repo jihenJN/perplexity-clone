@@ -7,9 +7,9 @@ export async function POST(req) {
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
- // const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
-
- const prompt = `You are an expert AI search assistant. Your job is to provide accurate, insightful, and well-structured answers based on the search results provided.
+  //const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
+  //const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+  const prompt = `You are an expert AI search assistant. Your job is to provide accurate, insightful, and well-structured answers based on the search results provided.
 
 ## Instructions
 - Analyze ALL search results carefully before writing
