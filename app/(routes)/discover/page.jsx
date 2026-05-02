@@ -1,20 +1,34 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Cpu, DollarSign, Globe, Palette, Star, Volleyball } from "lucide-react";
+import {
+  Cpu,
+  DollarSign,
+  Globe,
+  Palette,
+  Star,
+  Volleyball,
+} from "lucide-react";
 import axios from "axios";
 import moment from "moment/moment";
 
 const options = [
-  { title: "Top",            icon: Star,       query: "top news today" },
-  { title: "Tech & Science", icon: Cpu,        query: "technology science news" },
-  { title: "Finance",        icon: DollarSign, query: "finance business economy news" },
-  { title: "Art & Culture",  icon: Palette,    query: "art culture entertainment news" },
-  { title: "Sports",         icon: Volleyball, query: "sports news today" },
+  { title: "Top", icon: Star, query: "top news today" },
+  { title: "Tech & Science", icon: Cpu, query: "technology science news" },
+  {
+    title: "Finance",
+    icon: DollarSign,
+    query: "finance business economy news",
+  },
+  {
+    title: "Art & Culture",
+    icon: Palette,
+    query: "art culture entertainment news",
+  },
+  { title: "Sports", icon: Volleyball, query: "sports news today" },
 ];
 
-
-
 function NewsCard({ news, featured = false }) {
+  if (!news?.thumbnail) return null; // ← add this
   const handleClick = () => window.open(news?.link, "_blank");
 
   if (featured) {
@@ -33,6 +47,7 @@ function NewsCard({ news, featured = false }) {
               onError={(e) => {
                 e.currentTarget.style.display = "none";
                 e.currentTarget.nextSibling.style.display = "flex";
+                 e.currentTarget.closest("article").style.display = "none"
               }}
             />
           ) : null}
@@ -60,13 +75,18 @@ function NewsCard({ news, featured = false }) {
                   src={news.sourceIcon}
                   alt=""
                   className="h-4 w-4 rounded-sm object-contain"
-                  onError={(e) => (e.currentTarget.style.display = "none")}
+                  onError={(e) => (e.currentTarget.style.display = "none" , e.currentTarget.closest("article").style.display = "none")}
                 />
               )}
-              <span className="text-xs font-semibold text-gray-600">{news?.source}</span>
+              <span className="text-xs font-semibold text-gray-600">
+                {news?.source}
+              </span>
             </div>
             {news?.date && (
-              <span className="text-xs text-gray-400">  {moment(news?.date).fromNow()}</span>
+              <span className="text-xs text-gray-400">
+                {" "}
+                {moment(news?.date).fromNow()}
+              </span>
             )}
           </div>
         </div>
@@ -89,6 +109,7 @@ function NewsCard({ news, featured = false }) {
             onError={(e) => {
               e.currentTarget.style.display = "none";
               e.currentTarget.nextSibling.style.display = "flex";
+               e.currentTarget.closest("article").style.display = "none"
             }}
           />
         ) : null}
@@ -116,10 +137,14 @@ function NewsCard({ news, featured = false }) {
                 onError={(e) => (e.currentTarget.style.display = "none")}
               />
             )}
-            <span className="text-xs font-semibold text-gray-600 truncate">{news?.source}</span>
+            <span className="text-xs font-semibold text-gray-600 truncate">
+              {news?.source}
+            </span>
           </div>
           {news?.date && (
-            <span className="text-xs text-gray-400 shrink-0 ml-2">{moment(news?.date).fromNow()}</span>
+            <span className="text-xs text-gray-400 shrink-0 ml-2">
+              {moment(news?.date).fromNow()}
+            </span>
           )}
         </div>
       </div>
@@ -186,17 +211,19 @@ function Discover() {
     }
   };
 
-  const [featured, ...rest] = latestNews;
+  const featured = latestNews.find((n) => n?.thumbnail);
+  const rest = latestNews.filter((n) => n !== featured && n?.thumbnail);
 
   return (
     <div className="mt-20 px-4 md:px-10 lg:px-20 xl:px-36 pb-16">
-
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <div className="flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary">
           <Globe className="h-5 w-5" />
         </div>
-        <h1 className="font-bold text-2xl tracking-tight text-gray-900">Discover</h1>
+        <h1 className="font-bold text-2xl tracking-tight text-gray-900">
+          Discover
+        </h1>
       </div>
 
       {/* Category tabs */}
@@ -211,9 +238,10 @@ function Discover() {
               className={`
                 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap
                 transition-all duration-150 cursor-pointer select-none
-                ${active
-                  ? "bg-primary text-white shadow-sm"
-                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                ${
+                  active
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                 }
               `}
             >
@@ -229,7 +257,9 @@ function Discover() {
         <div className="flex flex-col gap-6">
           <SkeletonCard featured />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
         </div>
       ) : latestNews.length === 0 ? (
