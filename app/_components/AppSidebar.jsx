@@ -65,7 +65,6 @@ function AppSidebar() {
             <SidebarMenu>
               {MenuOptions.map((menu, index) => (
                 <SidebarMenuItem key={index}>
-                  {/* <SidebarMenuButton asChild className={"p-5 y-5"}> */}
                   <SidebarMenuButton className={"p-5 y-5"}>
                     <a
                       href={menu.path}
