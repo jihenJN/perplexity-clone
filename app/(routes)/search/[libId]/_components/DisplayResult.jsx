@@ -75,17 +75,13 @@ function DisplayResult({ searchInputRecord }) {
     setLoadingSearch(true);
     setStreamingAiResp("");
 
-    setLoadingSearch(true);
-    setStreamingAiResp("");
-
+    // 1. Fetch web search results
     const result = await axios.post("/api/web-search", {
       searchInput: query,
       searchType: searchInputRecord?.type ?? "Search",
     });
 
-    const searchResp = result.data;
-
-    const formattedSearchResp = searchResp?.organic_results?.map((item) => ({
+    const formattedSearchResp = result.data?.organic_results?.map((item) => ({
       title: item?.title,
       description: item?.about_this_result?.source?.description,
       img: item?.about_this_result?.source?.icon,
@@ -93,30 +89,32 @@ function DisplayResult({ searchInputRecord }) {
       thumbnail: item?.thumbnail,
     }));
 
-    const { data, error } = await supabase
+    // 2. Fire insert immediately (don't await yet)
+    const insertPromise = supabase
       .from("Chats")
       .insert([
         {
-          libId: libId,
+          libId,
           searchResult: formattedSearchResp,
           userSearchInput: query,
         },
       ])
       .select();
 
-    if (error || !data?.length) {
-      console.error("Supabase insert failed:", error);
-      setLoadingSearch(false);
-      return;
-    }
-
-    await GetSearchRecords();
+    // 3. Unblock UI while insert runs in background
     setLoadingSearch(false);
 
-    await streamAIResponse(formattedSearchResp, data[0].id ,query);
+    // 4. Now await the insert result
+    const { data, error } = await insertPromise;
+    if (error || !data?.length) {
+      console.error("Supabase insert failed:", error);
+      return;
+    }
+    // 5. Start streaming (no GetSearchRecords here anymore)
+    await streamAIResponse(formattedSearchResp, data[0].id, query);
   };
 
-  const streamAIResponse = async (formattedSearchResp, chatId ,query) => {
+  const streamAIResponse = async (formattedSearchResp, chatId, query) => {
     if (!chatId) return;
 
     setIsStreaming(true);
@@ -146,22 +144,22 @@ function DisplayResult({ searchInputRecord }) {
       if (done) break;
       const chunk = decoder.decode(value, { stream: true });
       fullText += chunk;
-
-      // Strip follow-ups section live so it never shows in the answer
-      const { cleanAnswer } = extractFollowUps(fullText);
-
-      setStreamingAiResp(fullText);
+      setStreamingAiResp(fullText); // raw during streaming (stripped in render)
     }
 
     setIsStreaming(false);
 
-    // Extract follow-ups from the complete response
+    // Decompose once streaming is complete
     const { cleanAnswer, followUps: parsed } = extractFollowUps(fullText);
     setFollowUps(parsed);
 
-    await supabase.from("Chats").update({ aiResp: fullText }).eq("id", chatId);
+    // Save cleanAnswer and followUps separately to DB
+    await supabase
+      .from("Chats")
+      .update({ aiResp: cleanAnswer, followUps: parsed })
+      .eq("id", chatId);
 
-    // ✅ Refresh so the last chat now has aiResp from DB
+    // Single DB refresh at the very end
     await GetSearchRecords();
   };
 
@@ -188,16 +186,17 @@ function DisplayResult({ searchInputRecord }) {
       {searchResult?.Chats?.map((chat, index) => {
         const isLastChat = index === searchResult.Chats.length - 1;
 
-        // During streaming use live buffer, otherwise use saved DB value
+        // Strip follow-ups during streaming; after, DB already has clean answer
         const resolvedAiResp =
           isLastChat && (isStreaming || !chat.aiResp)
-            ? streamingAiResp
+            ? extractFollowUps(streamingAiResp).cleanAnswer
             : chat.aiResp;
 
+        // Read follow-ups from DB on reload; use live state during streaming
         const resolvedFollowUps =
           isLastChat && followUps.length > 0
             ? followUps
-            : extractFollowUps(chat.aiResp ?? "").followUps; // restore on page reload
+            : (chat.followUps ?? []);
 
         return (
           <div key={index} className="mt-7">
@@ -239,7 +238,7 @@ function DisplayResult({ searchInputRecord }) {
                   aiResp={resolvedAiResp}
                   isStreaming={isLastChat && isStreaming}
                   followUps={resolvedFollowUps}
-                   onFollowUp={(question) => GetSearchApiResult(question)}
+                  onFollowUp={(question) => GetSearchApiResult(question)}
                 />
               ) : activeTab === "Images" ? (
                 <ImageListTab chat={chat} />
@@ -261,7 +260,7 @@ function DisplayResult({ searchInputRecord }) {
           onChange={(e) => setUserInput(e.target.value)}
         />
         {userInput?.length && (
-          <Button onClick={()=>GetSearchApiResult()} disabled={loadingSearch}>
+          <Button onClick={() => GetSearchApiResult()} disabled={loadingSearch}>
             {loadingSearch ? (
               <Loader2Icon className="animate-spin" />
             ) : (
