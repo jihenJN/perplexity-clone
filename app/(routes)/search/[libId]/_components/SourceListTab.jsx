@@ -12,7 +12,7 @@ function SourceListTab({chat}) {
           width={20} height={20} className='rounded-full w-[20px] h-[20px] border'/>
            <div>
           <h2 className='text-xs'>
-            {item.url}
+            {item.link}
           </h2>
          </div>
          

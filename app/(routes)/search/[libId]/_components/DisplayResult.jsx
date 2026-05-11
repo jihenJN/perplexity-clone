@@ -91,15 +91,7 @@ function DisplayResult({ searchInputRecord }) {
         searchInput: query,
         searchType: searchInputRecord?.type ?? "Search",
       });
-      formattedSearchResp = (result.data?.organic_results ?? []).map(
-        (item) => ({
-          title: item?.title,
-          description: item?.about_this_result?.source?.description,
-          img: item?.about_this_result?.source?.icon,
-          url: item?.link,
-          thumbnail: item?.thumbnail,
-        }),
-      );
+     formattedSearchResp = result.data?.organic_results ?? [];
     } catch (err) {
       console.error("Web search failed:", err);
       setStreamingState((s) => ({ ...s, isLoadingSearch: false }));

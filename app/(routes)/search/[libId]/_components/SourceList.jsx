@@ -26,7 +26,7 @@ function SourceList({ WebResult, loadingSearch }) {
             {WebResult?.map((item, index) => (
               <CarouselItem key={index} className="pl-2.5 basis-full sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
                 <div
-                  onClick={() => window.open(item.url, '_blank')}
+                  onClick={() => window.open(item.link, '_blank')}
                   className="p-3 bg-accent rounded-lg cursor-pointer hover:bg-[#e1e3da] transition-colors"
                 >
                   <div className="flex gap-2 items-center mb-1">
