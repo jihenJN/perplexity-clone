@@ -27,7 +27,6 @@ function extractFollowUps(markdown = "") {
   const match = markdown.match(
     /##\s*Related Questions\s*\n([\s\S]*?)(?=\n##|$)/i,
   );
-
   if (!match) return { cleanAnswer: markdown, followUps: [] };
 
   const followUps = match[1]
@@ -44,166 +43,206 @@ function extractFollowUps(markdown = "") {
 
 function DisplayResult({ searchInputRecord }) {
   const [activeTab, setActiveTab] = useState("Answer");
-  const [searchResult, setSearchResult] = useState(searchInputRecord);
-  const [streamingAiResp, setStreamingAiResp] = useState("");
-  const [loadingSearch, setLoadingSearch] = useState(false);
-  const [userInput, setUserInput] = useState();
+  const [chats, setChats] = useState(searchInputRecord?.Chats ?? []);
+  // Streaming state for the current in-flight chat
+  const [streamingState, setStreamingState] = useState({
+    chatIndex: null,   // index into `chats` that is currently streaming
+    rawText: "",       // raw accumulated text (may include follow-ups section)
+    isStreaming: false,
+    isLoadingSearch: false,
+    followUps: [],
+  });
+  const [userInput, setUserInput] = useState("");
   const { libId } = useParams();
+  // Guard against React StrictMode double-invoke
   const hasFetched = useRef(false);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [followUps, setFollowUps] = useState([]);
+
+  // ─── Sync chats when the parent prop changes (initial load) ───────────────
   useEffect(() => {
     if (!searchInputRecord) return;
+    setChats(searchInputRecord.Chats ?? []);
 
-    const run = async () => {
-      if (searchInputRecord?.Chats?.length === 0) {
-        if (!hasFetched.current) {
-          hasFetched.current = true;
-          await GetSearchApiResult();
-        }
-      } else {
-        setSearchResult(searchInputRecord); // chat.aiResp already inside each chat
-      }
-    };
+    const shouldFetch =
+      (searchInputRecord.Chats?.length ?? 0) === 0 && !hasFetched.current;
 
-    run();
+    if (shouldFetch) {
+      hasFetched.current = true;
+      runSearch(searchInputRecord.searchInput);
+    }
   }, [searchInputRecord]);
 
-  const GetSearchApiResult = async (overrideInput) => {
-    const query = overrideInput ?? userInput ?? searchInputRecord?.searchInput;
-    setFollowUps([]); // clear previous follow-ups
-    setLoadingSearch(true);
-    setStreamingAiResp("");
+  // ─── Core search + stream ─────────────────────────────────────────────────
+  const runSearch = async (query) => {
+    if (!query?.trim()) return;
 
-    // 1. Fetch web search results
-    const result = await axios.post("/api/web-search", {
-      searchInput: query,
-      searchType: searchInputRecord?.type ?? "Search",
+    // 1. Reset streaming state and show loading skeleton
+    setStreamingState({
+      chatIndex: null,
+      rawText: "",
+      isStreaming: false,
+      isLoadingSearch: true,
+      followUps: [],
     });
 
-    const formattedSearchResp = result.data?.organic_results?.map((item) => ({
-      title: item?.title,
-      description: item?.about_this_result?.source?.description,
-      img: item?.about_this_result?.source?.icon,
-      url: item?.link,
-      thumbnail: item?.thumbnail,
+    // 2. Fetch web search results
+    let formattedSearchResp = [];
+    try {
+      const result = await axios.post("/api/web-search", {
+        searchInput: query,
+        searchType: searchInputRecord?.type ?? "Search",
+      });
+      formattedSearchResp = (result.data?.organic_results ?? []).map(
+        (item) => ({
+          title: item?.title,
+          description: item?.about_this_result?.source?.description,
+          img: item?.about_this_result?.source?.icon,
+          url: item?.link,
+          thumbnail: item?.thumbnail,
+        }),
+      );
+    } catch (err) {
+      console.error("Web search failed:", err);
+      setStreamingState((s) => ({ ...s, isLoadingSearch: false }));
+      return;
+    }
+
+    // 3. Optimistically append a placeholder chat so the UI renders immediately
+    const placeholderChat = {
+      _isPlaceholder: true,
+      userSearchInput: query,
+      searchResult: formattedSearchResp,
+      aiResp: null,
+      followUps: [],
+    };
+    setChats((prev) => {
+      const updated = [...prev, placeholderChat];
+      // streaming index = last item
+      setStreamingState((s) => ({
+        ...s,
+        chatIndex: updated.length - 1,
+        isLoadingSearch: false,
+        isStreaming: true,
+        rawText: "",
+      }));
+      return updated;
+    });
+
+    // 4. Stream AI response BEFORE any DB write
+    let fullText = "";
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          searchInput: query,
+          searchResult: formattedSearchResp,
+        }),
+      });
+
+      if (!res.ok) {
+        const errMsg = await res.text();
+        console.error("Chat API error:", errMsg);
+        setStreamingState((s) => ({ ...s, isStreaming: false }));
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8", { stream: true });
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        fullText += decoder.decode(value, { stream: true });
+        setStreamingState((s) => ({ ...s, rawText: fullText }));
+      }
+    } catch (err) {
+      console.error("Streaming error:", err);
+      setStreamingState((s) => ({ ...s, isStreaming: false }));
+      return;
+    }
+
+    // 5. Decompose follow-ups from final text
+    const { cleanAnswer, followUps: parsed } = extractFollowUps(fullText);
+
+    // 6. Mark streaming done + update follow-ups in state
+    setStreamingState((s) => ({
+      ...s,
+      isStreaming: false,
+      followUps: parsed,
     }));
 
-    // 2. Fire insert immediately (don't await yet)
-    const insertPromise = supabase
+    // 7. Persist to DB in ONE go (insert chat + full answer at once)
+    const { data, error } = await supabase
       .from("Chats")
       .insert([
         {
           libId,
           searchResult: formattedSearchResp,
           userSearchInput: query,
+          aiResp: cleanAnswer,
+          followUps: parsed,
         },
       ])
-      .select();
+      .select()
+      .single();
 
-    // 3. Unblock UI while insert runs in background
-    setLoadingSearch(false);
-
-    // 4. Now await the insert result
-    const { data, error } = await insertPromise;
-    if (error || !data?.length) {
+    if (error) {
       console.error("Supabase insert failed:", error);
       return;
     }
-    // 5. Start streaming (no GetSearchRecords here anymore)
-    await streamAIResponse(formattedSearchResp, data[0].id, query);
+
+    // 8. Replace placeholder chat with the real persisted record — no extra fetch
+    setChats((prev) =>
+      prev.map((chat, i) =>
+        chat._isPlaceholder && chat.userSearchInput === query
+          ? { ...data }
+          : chat,
+      ),
+    );
+
+    // Clear streaming index so the now-persisted chat renders normally
+    setStreamingState((s) => ({ ...s, chatIndex: null, rawText: "", followUps: [] }));
   };
 
-  const streamAIResponse = async (formattedSearchResp, chatId, query) => {
-    if (!chatId) return;
-
-    setIsStreaming(true);
-
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        searchInput: query,
-        searchResult: formattedSearchResp,
-      }),
-    });
-
-    if (!res.ok) {
-      const errorMsg = await res.text();
-      setStreamingAiResp(errorMsg);
-      setIsStreaming(false);
-      return;
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder("utf-8", { stream: true });
-    let fullText = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      fullText += chunk;
-      setStreamingAiResp(fullText); // raw during streaming (stripped in render)
-    }
-
-    setIsStreaming(false);
-
-    // Decompose once streaming is complete
-    const { cleanAnswer, followUps: parsed } = extractFollowUps(fullText);
-    setFollowUps(parsed);
-
-    // Save cleanAnswer and followUps separately to DB
-    await supabase
-      .from("Chats")
-      .update({ aiResp: cleanAnswer, followUps: parsed })
-      .eq("id", chatId);
-
-    // Single DB refresh at the very end
-    await GetSearchRecords();
+  // ─── Follow-up / user submit ──────────────────────────────────────────────
+  const handleSubmit = () => {
+    if (!userInput?.trim() || streamingState.isLoadingSearch || streamingState.isStreaming) return;
+    runSearch(userInput);
+    setUserInput("");
   };
 
-  const GetSearchRecords = async () => {
-    let { data: Library } = await supabase
-      .from("Library")
-      .select("*,Chats(*)")
-      .eq("libId", libId)
-      .order("id", { foreignTable: "Chats", ascending: true });
-
-    setSearchResult(Library[0]);
-  };
-
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="mt-7">
-      {!searchResult && (
+      {/* Loading skeleton when no chats yet */}
+      {chats.length === 0 && streamingState.isLoadingSearch && (
         <div>
-          <div className="w-full h-4 animate-pulse bg-accent rounded-md"></div>
-          <div className="w-1/2 mt-2 h-4 animate-pulse bg-accent rounded-md"></div>
-          <div className="w-[70%] mt-2 h-4 animate-pulse bg-accent rounded-md"></div>
+          <div className="w-full h-4 animate-pulse bg-accent rounded-md" />
+          <div className="w-1/2 mt-2 h-4 animate-pulse bg-accent rounded-md" />
+          <div className="w-[70%] mt-2 h-4 animate-pulse bg-accent rounded-md" />
         </div>
       )}
 
-      {searchResult?.Chats?.map((chat, index) => {
-        const isLastChat = index === searchResult.Chats.length - 1;
+      {chats.map((chat, index) => {
+        const isStreamingThis = index === streamingState.chatIndex;
 
-        // Strip follow-ups during streaming; after, DB already has clean answer
-        const resolvedAiResp =
-          isLastChat && (isStreaming || !chat.aiResp)
-            ? extractFollowUps(streamingAiResp).cleanAnswer
-            : chat.aiResp;
+        // During streaming: strip follow-ups section from live text
+        const resolvedAiResp = isStreamingThis
+          ? extractFollowUps(streamingState.rawText).cleanAnswer
+          : chat.aiResp;
 
-        // Read follow-ups from DB on reload; use live state during streaming
-        const resolvedFollowUps =
-          isLastChat && followUps.length > 0
-            ? followUps
-            : (chat.followUps ?? []);
+        // Follow-ups: live state wins during streaming, fall back to DB value
+        const resolvedFollowUps = isStreamingThis
+          ? streamingState.followUps
+          : (chat.followUps ?? []);
 
         return (
-          <div key={index} className="mt-7">
+          <div key={chat.id ?? `placeholder-${index}`} className="mt-7">
             <h2 className="font-bold text-3xl line-clamp-2">
-              {chat?.userSearchInput}
+              {chat.userSearchInput}
             </h2>
 
+            {/* Tab bar */}
             <div className="flex items-center space-x-6 border-b border-gray-200 pb-2 mt-6">
               {tabs.map(({ label, icon: Icon, badge }) => (
                 <button
@@ -221,7 +260,7 @@ function DisplayResult({ searchInputRecord }) {
                     </span>
                   )}
                   {activeTab === label && (
-                    <span className="absolute -bottom-2 left-0 w-full h-0.5 bg-black rounded"></span>
+                    <span className="absolute -bottom-2 left-0 w-full h-0.5 bg-black rounded" />
                   )}
                 </button>
               ))}
@@ -230,15 +269,16 @@ function DisplayResult({ searchInputRecord }) {
               </div>
             </div>
 
+            {/* Tab content */}
             <div>
               {activeTab === "Answer" ? (
                 <AnswerDisplay
                   chat={chat}
-                  loadingSearch={loadingSearch}
+                  loadingSearch={isStreamingThis && streamingState.isLoadingSearch}
                   aiResp={resolvedAiResp}
-                  isStreaming={isLastChat && isStreaming}
+                  isStreaming={isStreamingThis && streamingState.isStreaming}
                   followUps={resolvedFollowUps}
-                  onFollowUp={(question) => GetSearchApiResult(question)}
+                  onFollowUp={(question) => runSearch(question)}
                 />
               ) : activeTab === "Images" ? (
                 <ImageListTab chat={chat} />
@@ -248,20 +288,27 @@ function DisplayResult({ searchInputRecord }) {
                 <SourceListTab chat={chat} />
               ) : null}
             </div>
+
             <hr className="my-5" />
           </div>
         );
       })}
 
-      <div className="bg-white w-full border rounded-lg shadow-md p-3 px-5 flex justify-between fixed bottom-6 max-w-md lg:max-w-2 xl:max-w-3xl">
+      {/* Fixed input bar */}
+      <div className="bg-white w-full border rounded-lg shadow-md p-3 px-5 flex justify-between fixed bottom-6 max-w-md lg:max-w-2xl xl:max-w-3xl">
         <input
+          value={userInput}
           placeholder="Type Anything..."
           className="outline-none w-full"
           onChange={(e) => setUserInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
         />
-        {userInput?.length && (
-          <Button onClick={() => GetSearchApiResult()} disabled={loadingSearch}>
-            {loadingSearch ? (
+        {userInput?.trim().length > 0 && (
+          <Button
+            onClick={handleSubmit}
+            disabled={streamingState.isLoadingSearch || streamingState.isStreaming}
+          >
+            {streamingState.isLoadingSearch ? (
               <Loader2Icon className="animate-spin" />
             ) : (
               <Send />
