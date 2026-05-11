@@ -7,7 +7,7 @@ function pickFields(items = []) {
     title: item.title,
     link: item.link,
     thumbnail: item.thumbnail ?? null,
-    description: item.about_this_result?.source?.description ?? null,
+    description: item.snippet ?? item.description,
     img: item.about_this_result?.source?.icon ?? null,
   }));
 }
