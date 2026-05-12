@@ -11,7 +11,6 @@ function SearchQueryResult() {
   const hasFetched = useRef(false);
 
   useEffect(() => {
-    // Guard against React StrictMode double-invoke
     if (hasFetched.current) return;
     hasFetched.current = true;
     GetSearchQueryRecord();
@@ -25,13 +24,24 @@ function SearchQueryResult() {
       .order("id", { foreignTable: "Chats", ascending: true });
 
     setSearchInputRecord(Library?.[0]);
-    // ✅ That's it — DisplayResult owns all streaming + saving logic
   };
 
   return (
-    <div>
+    <div className="min-h-screen flex flex-col">
       <Header searchInputRecord={searchInputRecord} />
-      <div className="px-10 md:px-20 lg:px-36 xl:px-56 mt-20 mb-25">
+
+      {/*
+        Padding scale:
+          mobile  → px-4  (16px each side — comfortable thumb reach)
+          sm      → px-8  (32px)
+          md      → px-16 (64px)
+          lg      → px-28 (112px)
+          xl      → px-48 (192px)
+
+        Top margin keeps content clear of the sticky header (~56px tall).
+        Bottom margin leaves room above the fixed input bar in DisplayResult.
+      */}
+      <div className="flex-1 px-4 sm:px-8 md:px-16 lg:px-28 xl:px-48 mt-6 sm:mt-10">
         <DisplayResult searchInputRecord={searchInputRecord} />
       </div>
     </div>

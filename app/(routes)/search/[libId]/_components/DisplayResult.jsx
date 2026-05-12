@@ -23,6 +23,7 @@ const tabs = [
   { label: "Sources", icon: LucideList, badge: 10 },
 ];
 import LoadingSteps from "./LoadingSteps";
+
 function extractFollowUps(markdown = "") {
   const match = markdown.match(
     /##\s*Related Questions\s*\n([\s\S]*?)(?=\n##|$)/i,
@@ -44,20 +45,17 @@ function extractFollowUps(markdown = "") {
 function DisplayResult({ searchInputRecord }) {
   const [activeTab, setActiveTab] = useState("Answer");
   const [chats, setChats] = useState(searchInputRecord?.Chats ?? []);
-  // Streaming state for the current in-flight chat
   const [streamingState, setStreamingState] = useState({
-    chatIndex: null, // index into `chats` that is currently streaming
-    rawText: "", // raw accumulated text (may include follow-ups section)
+    chatIndex: null,
+    rawText: "",
     isStreaming: false,
     isLoadingSearch: false,
     followUps: [],
   });
   const [userInput, setUserInput] = useState("");
   const { libId } = useParams();
-  // Guard against React StrictMode double-invoke
   const hasFetched = useRef(false);
 
-  // ─── Sync chats when the parent prop changes (initial load) ───────────────
   useEffect(() => {
     if (!searchInputRecord) return;
     setChats(searchInputRecord.Chats ?? []);
@@ -71,11 +69,9 @@ function DisplayResult({ searchInputRecord }) {
     }
   }, [searchInputRecord]);
 
-  // ─── Core search + stream ─────────────────────────────────────────────────
   const runSearch = async (query) => {
     if (!query?.trim()) return;
 
-    // 1. Reset streaming state and show loading skeleton
     setStreamingState({
       chatIndex: null,
       rawText: "",
@@ -84,7 +80,6 @@ function DisplayResult({ searchInputRecord }) {
       followUps: [],
     });
 
-    // 2. Fetch web search results
     let formattedSearchResp = [];
     try {
       const result = await axios.post("/api/web-search", {
@@ -98,7 +93,6 @@ function DisplayResult({ searchInputRecord }) {
       return;
     }
 
-    // 3. Optimistically append a placeholder chat so the UI renders immediately
     const placeholderChat = {
       _isPlaceholder: true,
       userSearchInput: query,
@@ -108,7 +102,6 @@ function DisplayResult({ searchInputRecord }) {
     };
     setChats((prev) => {
       const updated = [...prev, placeholderChat];
-      // streaming index = last item
       setStreamingState((s) => ({
         ...s,
         chatIndex: updated.length - 1,
@@ -119,7 +112,6 @@ function DisplayResult({ searchInputRecord }) {
       return updated;
     });
 
-    // 4. Stream AI response BEFORE any DB write
     let fullText = "";
     try {
       const res = await fetch("/api/chat", {
@@ -153,17 +145,14 @@ function DisplayResult({ searchInputRecord }) {
       return;
     }
 
-    // 5. Decompose follow-ups from final text
     const { cleanAnswer, followUps: parsed } = extractFollowUps(fullText);
 
-    // 6. Mark streaming done + update follow-ups in state
     setStreamingState((s) => ({
       ...s,
       isStreaming: false,
       followUps: parsed,
     }));
 
-    // 7. Persist to DB in ONE go (insert chat + full answer at once)
     const { data, error } = await supabase
       .from("Chats")
       .insert([
@@ -183,16 +172,14 @@ function DisplayResult({ searchInputRecord }) {
       return;
     }
 
-    // 8. Replace placeholder chat with the real persisted record — no extra fetch
     setChats((prev) =>
-      prev.map((chat, i) =>
+      prev.map((chat) =>
         chat._isPlaceholder && chat.userSearchInput === query
           ? { ...data }
           : chat,
       ),
     );
 
-    // Clear streaming index so the now-persisted chat renders normally
     setStreamingState((s) => ({
       ...s,
       chatIndex: null,
@@ -201,7 +188,6 @@ function DisplayResult({ searchInputRecord }) {
     }));
   };
 
-  // ─── Follow-up / user submit ──────────────────────────────────────────────
   const handleSubmit = () => {
     if (
       !userInput?.trim() ||
@@ -213,11 +199,9 @@ function DisplayResult({ searchInputRecord }) {
     setUserInput("");
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="mt-7">
-      {/* Loading steps when no chats yet */}
-
+    // Extra bottom padding so content isn't hidden behind the fixed input bar
+    <div className="mt-5 sm:mt-7 pb-28">
       {chats.length === 0 &&
         (streamingState.isLoadingSearch || streamingState.isStreaming) && (
           <LoadingSteps
@@ -226,39 +210,42 @@ function DisplayResult({ searchInputRecord }) {
             hasText={streamingState.rawText.length > 0}
           />
         )}
+
       {chats.map((chat, index) => {
         const isStreamingThis = index === streamingState.chatIndex;
 
-        // During streaming: strip follow-ups section from live text
         const resolvedAiResp = isStreamingThis
           ? extractFollowUps(streamingState.rawText).cleanAnswer
           : chat.aiResp;
 
-        // Follow-ups: live state wins during streaming, fall back to DB value
         const resolvedFollowUps = isStreamingThis
           ? streamingState.followUps
           : (chat.followUps ?? []);
 
         return (
-          <div key={chat.id ?? `placeholder-${index}`} className="mt-7">
-            <h2 className="font-bold text-3xl line-clamp-2">
+          <div key={chat.id ?? `placeholder-${index}`} className="mt-5 sm:mt-7">
+            {/* Query heading — smaller on mobile */}
+            <h2 className="font-bold text-xl sm:text-3xl line-clamp-2">
               {chat.userSearchInput}
             </h2>
 
-            {/* Tab bar */}
-            <div className="flex items-center space-x-6 border-b border-gray-200 pb-2 mt-6">
+            {/* Tab bar — scrollable on mobile so it never wraps or clips */}
+            <div className="flex items-center gap-1 sm:gap-4 sm:space-x-2 border-b border-gray-200 pb-2 mt-4 sm:mt-6 overflow-x-auto scrollbar-hide">
               {tabs.map(({ label, icon: Icon, badge }) => (
                 <button
                   key={label}
                   onClick={() => setActiveTab(label)}
-                  className={`flex items-center gap-1 relative text-sm font-medium text-gray-700 hover:text-black ${
-                    activeTab === label ? "text-black" : ""
-                  }`}
+                  className={`flex items-center gap-1 relative text-sm font-medium whitespace-nowrap px-2 py-1 rounded-sm transition-colors
+                    ${activeTab === label
+                      ? "text-black"
+                      : "text-gray-500 hover:text-gray-800"
+                    }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span>{label}</span>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {/* Label hidden on very small screens to save space */}
+                  <span className="hidden xs:inline sm:inline">{label}</span>
                   {badge && (
-                    <span className="ml-1 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                    <span className="ml-0.5 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
                       {badge}
                     </span>
                   )}
@@ -267,13 +254,15 @@ function DisplayResult({ searchInputRecord }) {
                   )}
                 </button>
               ))}
-              <div className="ml-auto text-sm text-gray-500">
-                1 task <span className="ml-1">🡥</span>
+
+              {/* "1 task" indicator pushed to the right */}
+              <div className="ml-auto shrink-0 text-xs sm:text-sm text-gray-500 pr-1">
+                1 task <span className="ml-0.5">🡥</span>
               </div>
             </div>
 
             {/* Tab content */}
-            <div>
+            <div className="mt-2">
               {activeTab === "Answer" ? (
                 <AnswerDisplay
                   chat={chat}
@@ -284,7 +273,6 @@ function DisplayResult({ searchInputRecord }) {
                     isStreamingThis ? streamingState.isStreaming : false
                   }
                   aiResp={resolvedAiResp}
-                  
                   followUps={resolvedFollowUps}
                   onFollowUp={(question) => runSearch(question)}
                 />
@@ -302,12 +290,20 @@ function DisplayResult({ searchInputRecord }) {
         );
       })}
 
-      {/* Fixed input bar */}
-      <div className="bg-white w-full border rounded-lg shadow-md p-3 px-5 flex justify-between fixed bottom-6 max-w-md lg:max-w-2xl xl:max-w-3xl">
+       {/* Fixed input bar — centered at all screen sizes */}
+      <div
+        className="
+          fixed bottom-4 left-1/2 -translate-x-1/2
+          w-[calc(100%-2rem)] max-w-[880px]
+          bg-white border rounded-xl shadow-lg
+          p-2.5 px-4 flex items-center gap-2
+          z-50
+        "
+      >
         <input
           value={userInput}
-          placeholder="Type Anything..."
-          className="outline-none w-full"
+          placeholder="Type anything..."
+          className="outline-none w-full text-sm sm:text-base bg-transparent"
           onChange={(e) => setUserInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
         />
@@ -317,11 +313,13 @@ function DisplayResult({ searchInputRecord }) {
             disabled={
               streamingState.isLoadingSearch || streamingState.isStreaming
             }
+            size="sm"
+            className="shrink-0"
           >
             {streamingState.isLoadingSearch ? (
-              <Loader2Icon className="animate-spin" />
+              <Loader2Icon className="animate-spin w-4 h-4" />
             ) : (
-              <Send />
+              <Send className="w-4 h-4" />
             )}
           </Button>
         )}
