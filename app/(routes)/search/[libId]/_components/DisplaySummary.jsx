@@ -4,17 +4,9 @@ import Markdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-function DisplaySummary({ aiResp, isStreaming }) {
+function DisplaySummary({ aiResp, isStreaming, isLoadingSearch }) {
   return (
     <div className="mt-7">
-      {!aiResp && (
-        <div>
-          <div className="w-full h-4 animate-pulse bg-accent rounded-md"></div>
-          <div className="w-1/2 mt-2 h-4 animate-pulse bg-accent rounded-md"></div>
-          <div className="w-[70%] mt-2 h-4 animate-pulse bg-accent rounded-md"></div>
-        </div>
-      )}
-
       <div
         className="relative transition-opacity duration-500"
         style={{ opacity: aiResp ? 1 : 0 }}
@@ -74,7 +66,7 @@ function DisplaySummary({ aiResp, isStreaming }) {
           {aiResp}
         </Markdown>
 
-        {/* ✅ Blinking cursor only while streaming */}
+        {/* Blinking cursor only while streaming */}
         {isStreaming && (
           <span className="inline-block w-[2px] h-4 bg-gray-800 ml-0.5 animate-pulse align-middle" />
         )}

@@ -22,7 +22,7 @@ const tabs = [
   { label: "Videos", icon: LucideVideo },
   { label: "Sources", icon: LucideList, badge: 10 },
 ];
-
+import LoadingSteps from "./LoadingSteps";
 function extractFollowUps(markdown = "") {
   const match = markdown.match(
     /##\s*Related Questions\s*\n([\s\S]*?)(?=\n##|$)/i,
@@ -46,8 +46,8 @@ function DisplayResult({ searchInputRecord }) {
   const [chats, setChats] = useState(searchInputRecord?.Chats ?? []);
   // Streaming state for the current in-flight chat
   const [streamingState, setStreamingState] = useState({
-    chatIndex: null,   // index into `chats` that is currently streaming
-    rawText: "",       // raw accumulated text (may include follow-ups section)
+    chatIndex: null, // index into `chats` that is currently streaming
+    rawText: "", // raw accumulated text (may include follow-ups section)
     isStreaming: false,
     isLoadingSearch: false,
     followUps: [],
@@ -91,7 +91,7 @@ function DisplayResult({ searchInputRecord }) {
         searchInput: query,
         searchType: searchInputRecord?.type ?? "Search",
       });
-     formattedSearchResp = result.data?.organic_results ?? [];
+      formattedSearchResp = result.data?.organic_results ?? [];
     } catch (err) {
       console.error("Web search failed:", err);
       setStreamingState((s) => ({ ...s, isLoadingSearch: false }));
@@ -193,12 +193,22 @@ function DisplayResult({ searchInputRecord }) {
     );
 
     // Clear streaming index so the now-persisted chat renders normally
-    setStreamingState((s) => ({ ...s, chatIndex: null, rawText: "", followUps: [] }));
+    setStreamingState((s) => ({
+      ...s,
+      chatIndex: null,
+      rawText: "",
+      followUps: [],
+    }));
   };
 
   // ─── Follow-up / user submit ──────────────────────────────────────────────
   const handleSubmit = () => {
-    if (!userInput?.trim() || streamingState.isLoadingSearch || streamingState.isStreaming) return;
+    if (
+      !userInput?.trim() ||
+      streamingState.isLoadingSearch ||
+      streamingState.isStreaming
+    )
+      return;
     runSearch(userInput);
     setUserInput("");
   };
@@ -206,15 +216,16 @@ function DisplayResult({ searchInputRecord }) {
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="mt-7">
-      {/* Loading skeleton when no chats yet */}
-      {chats.length === 0 && streamingState.isLoadingSearch && (
-        <div>
-          <div className="w-full h-4 animate-pulse bg-accent rounded-md" />
-          <div className="w-1/2 mt-2 h-4 animate-pulse bg-accent rounded-md" />
-          <div className="w-[70%] mt-2 h-4 animate-pulse bg-accent rounded-md" />
-        </div>
-      )}
+      {/* Loading steps when no chats yet */}
 
+      {chats.length === 0 &&
+        (streamingState.isLoadingSearch || streamingState.isStreaming) && (
+          <LoadingSteps
+            isLoadingSearch={streamingState.isLoadingSearch}
+            isStreaming={streamingState.isStreaming}
+            hasText={streamingState.rawText.length > 0}
+          />
+        )}
       {chats.map((chat, index) => {
         const isStreamingThis = index === streamingState.chatIndex;
 
@@ -266,9 +277,14 @@ function DisplayResult({ searchInputRecord }) {
               {activeTab === "Answer" ? (
                 <AnswerDisplay
                   chat={chat}
-                  loadingSearch={isStreamingThis && streamingState.isLoadingSearch}
+                  loadingSearch={
+                    isStreamingThis ? streamingState.isLoadingSearch : false
+                  }
+                  isStreaming={
+                    isStreamingThis ? streamingState.isStreaming : false
+                  }
                   aiResp={resolvedAiResp}
-                  isStreaming={isStreamingThis && streamingState.isStreaming}
+                  
                   followUps={resolvedFollowUps}
                   onFollowUp={(question) => runSearch(question)}
                 />
@@ -298,7 +314,9 @@ function DisplayResult({ searchInputRecord }) {
         {userInput?.trim().length > 0 && (
           <Button
             onClick={handleSubmit}
-            disabled={streamingState.isLoadingSearch || streamingState.isStreaming}
+            disabled={
+              streamingState.isLoadingSearch || streamingState.isStreaming
+            }
           >
             {streamingState.isLoadingSearch ? (
               <Loader2Icon className="animate-spin" />
