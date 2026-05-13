@@ -5,7 +5,9 @@ import {
   LucideList,
   LucideSparkles,
   LucideVideo,
-  Send,
+  Mic,
+  Plus,
+  ArrowUp,
 } from "lucide-react";
 import AnswerDisplay from "./AnswerDisplay";
 import axios from "axios";
@@ -13,9 +15,9 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/app/services/Supabase";
 import ImageListTab from "./ImageListTab";
 import SourceListTab from "./SourceListTab";
-import { Button } from "@/components/ui/button";
 import VideoListTab from "./VideoListTab";
-
+import { useSidebar } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
 const tabs = [
   { label: "Answer", icon: LucideSparkles },
   { label: "Images", icon: LucideImage },
@@ -55,6 +57,12 @@ function DisplayResult({ searchInputRecord }) {
   const [userInput, setUserInput] = useState("");
   const { libId } = useParams();
   const hasFetched = useRef(false);
+  const textareaRef = useRef(null);
+  const { open, isMobile } = useSidebar();
+  const sidebarOffset =
+    !isMobile && open ? "var(--sidebar-width, 16rem)" : "0px";
+  const isBusy = streamingState.isLoadingSearch || streamingState.isStreaming;
+  const hasInput = userInput.trim().length > 0;
 
   useEffect(() => {
     if (!searchInputRecord) return;
@@ -68,6 +76,13 @@ function DisplayResult({ searchInputRecord }) {
       runSearch(searchInputRecord.searchInput);
     }
   }, [searchInputRecord]);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  }, [userInput]);
 
   const runSearch = async (query) => {
     if (!query?.trim()) return;
@@ -201,7 +216,7 @@ function DisplayResult({ searchInputRecord }) {
 
   return (
     // Extra bottom padding so content isn't hidden behind the fixed input bar
-    <div className="mt-5 sm:mt-7 pb-28">
+    <div className="mt-5 sm:mt-7 pb-32">
       {chats.length === 0 &&
         (streamingState.isLoadingSearch || streamingState.isStreaming) && (
           <LoadingSteps
@@ -236,9 +251,10 @@ function DisplayResult({ searchInputRecord }) {
                   key={label}
                   onClick={() => setActiveTab(label)}
                   className={`flex items-center gap-1 relative text-sm font-medium whitespace-nowrap px-2 py-1 rounded-sm transition-colors
-                    ${activeTab === label
-                      ? "text-black"
-                      : "text-gray-500 hover:text-gray-800"
+                    ${
+                      activeTab === label
+                        ? "text-black"
+                        : "text-gray-500 hover:text-gray-800"
                     }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
@@ -290,39 +306,60 @@ function DisplayResult({ searchInputRecord }) {
         );
       })}
 
-       {/* Fixed input bar — centered at all screen sizes */}
+      {/* Fixed input bar — centered at all screen sizes */}
       <div
-        className="
-          fixed bottom-4 left-1/2 -translate-x-1/2
-          w-[calc(100%-2rem)] max-w-[880px]
-          bg-white border rounded-xl shadow-lg
-          p-2.5 px-4 flex items-center gap-2
-          z-50
-        "
+        className="fixed bottom-0 flex justify-center items-end pb-4 pt-8 pointer-events-none bg-gradient-to-t from-white via-white/90 to-transparent z-50"
+        style={{ left: sidebarOffset, right: 0, transition: "left 200ms ease" }}
       >
-        <input
-          value={userInput}
-          placeholder="Type anything..."
-          className="outline-none w-full text-sm sm:text-base bg-transparent"
-          onChange={(e) => setUserInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-        />
-        {userInput?.trim().length > 0 && (
-          <Button
-            onClick={handleSubmit}
-            disabled={
-              streamingState.isLoadingSearch || streamingState.isStreaming
-            }
-            size="sm"
-            className="shrink-0"
-          >
-            {streamingState.isLoadingSearch ? (
-              <Loader2Icon className="animate-spin w-4 h-4" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </Button>
-        )}
+        <div className="pointer-events-auto w-full mx-4 sm:mx-8 md:mx-16 lg:mx-28 xl:mx-48 bg-white border border-gray-300 rounded-3xl shadow-sm px-4 py-3 flex flex-col gap-3">
+          {/* Textarea */}
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            value={userInput}
+            placeholder="Ask anything..."
+            className="w-full resize-none outline-none text-sm sm:text-[15px] bg-transparent leading-6 max-h-[200px] overflow-y-auto placeholder:text-gray-400 text-gray-800"
+            onChange={(e) => setUserInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+          />
+
+          {/* Toolbar */}
+          <div className="flex items-center justify-between">
+            {/* Left actions */}
+            <div className="flex items-center gap-1">
+              <Button  variant="ghost" className="flex items-center justify-center w-8 h-8  text-gray-500 hover:bg-gray-100 transition-colors">
+                <Plus className="w-[18px] h-[18px]" />
+              </Button>
+            </div>
+
+            {/* Right: send or mic */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={hasInput ? handleSubmit : undefined}
+              disabled={isBusy}
+              className={` w-8 h-8 transition-all duration-150
+        ${
+          hasInput
+            ? "bg-primary text-white hover:bg-gray-100 disabled:opacity-40"
+            : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+        }`}
+            >
+              {isBusy ? (
+                <Loader2Icon className="w-8 h-8 animate-spin " />
+              ) : hasInput ? (
+                <ArrowUp className="w-[15px] h-[15px]" />
+              ) : (
+                <Mic className="w-[18px] h-[18px]" />
+              )}
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
