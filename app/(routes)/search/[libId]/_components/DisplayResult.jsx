@@ -25,6 +25,7 @@ const tabs = [
   { label: "Sources", icon: LucideList, badge: 10 },
 ];
 import LoadingSteps from "./LoadingSteps";
+import { useModelStore } from "@/lib/stores/modelStore"
 
 function extractFollowUps(markdown = "") {
   const match = markdown.match(
@@ -63,7 +64,7 @@ function DisplayResult({ searchInputRecord }) {
     !isMobile && open ? "var(--sidebar-width, 16rem)" : "0px";
   const isBusy = streamingState.isLoadingSearch || streamingState.isStreaming;
   const hasInput = userInput.trim().length > 0;
-
+  const { selectedModelId } = useModelStore()
   useEffect(() => {
     if (!searchInputRecord) return;
     setChats(searchInputRecord.Chats ?? []);
@@ -135,6 +136,7 @@ function DisplayResult({ searchInputRecord }) {
         body: JSON.stringify({
           searchInput: query,
           searchResult: formattedSearchResp,
+          modelId:selectedModelId, 
         }),
       });
 

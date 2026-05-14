@@ -1,39 +1,25 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { streamCompletion } from "@/lib/ai/gateway"
 
-export const runtime = "edge";
+export const runtime = "edge"
 
-// Only keep what the model actually needs — cuts input tokens ~60%
-function compactResults(results) {
+// Trim search results to reduce input tokens
+function compactResults(results = []) {
   return results
     .slice(0, 5)
     .map(({ title, description }, i) =>
-      `[${i + 1}] ${title}: ${description ?? ""}`.trim()
+      `[${i + 1}] ${title}: ${(description ?? "").trim()}`
     )
-    .join("\n");
+    .join("\n")
 }
 
-export async function POST(req) {
-  const { searchInput, searchResult } = await req.json();
-
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({
-    model: "gemini-flash-latest",
-    generationConfig: {
-      thinkingConfig: {
-        thinkingBudget: 0, // ✅ disables thinking — not needed for summarization
-      },
-      temperature: 0.7,
-    },
-  });
-
-  const prompt = `You are an expert AI search assistant. Answer the query using ALL search results provided.
+function buildPrompt(searchInput, searchResult) {
+  return `You are an expert AI search assistant. Answer the query using ALL search results provided.
 
 ## Rules
 - Synthesize across ALL sources — do not rely on just one
-- Match tone and format to the query type (recipe, technical, factual, news, etc.)
-- Use ## headers (not ###), **bold** key terms, bullet points, code blocks where needed
-- Limit examples to 5–7 max — never exhaustively list items
-- Be concise — no filler, no repetition, aim for 200–300 words
+- Match tone and format to the query type
+- Use ## headers, **bold** key terms, bullet points, code blocks where needed
+- Be concise — aim for 200–300 words
 - Never mention sources, URLs, or links
 - Never start with "Based on..." or "According to..."
 
@@ -45,26 +31,25 @@ export async function POST(req) {
 
 Query: ${searchInput}
 Results:
-${compactResults(searchResult)}`;
+${compactResults(searchResult)}`
+}
+
+export async function POST(req) {
+  const {
+    searchInput,
+    searchResult,
+    modelId,   // e.g. "claude-sonnet-4"  — sent from the frontend
+    intent,    // e.g. "quality" | "speed" | "cost" — optional smart routing
+  } = await req.json()
+
+  if (!searchInput?.trim()) {
+    return new Response("⚠️ searchInput is required.", { status: 400 })
+  }
+
+  const prompt = buildPrompt(searchInput, searchResult ?? [])
 
   try {
-    const result = await model.generateContentStream(prompt);
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of result.stream) {
-            controller.enqueue(new TextEncoder().encode(chunk.text()));
-          }
-        } catch {
-          controller.enqueue(
-            new TextEncoder().encode("\n\n⚠️ Error while generating response.")
-          );
-        } finally {
-          controller.close();
-        }
-      },
-    });
+    const stream = await streamCompletion(prompt, modelId, intent)
 
     return new Response(stream, {
       headers: {
@@ -73,14 +58,16 @@ ${compactResults(searchResult)}`;
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
       },
-    });
-
+    })
   } catch (err) {
-    const msg = err.message ?? "";
+    const msg = err?.message ?? ""
+    console.error("[/api/chat]", msg)
+
     if (msg.includes("429"))
-      return new Response("⚠️ Rate limit reached. Wait a moment and retry.", { status: 429 });
-    if (msg.includes("API_KEY") || msg.includes("403"))
-      return new Response("⚠️ Invalid or missing Gemini API key.", { status: 403 });
-    return new Response("⚠️ Something went wrong. Please try again.", { status: 500 });
+      return new Response("⚠️ Rate limit reached. Please wait and retry.", { status: 429 })
+    if (msg.includes("401") || msg.includes("403") || msg.includes("API_KEY"))
+      return new Response("⚠️ Invalid or missing API key.", { status: 403 })
+
+    return new Response("⚠️ Something went wrong. Please try again.", { status: 500 })
   }
 }

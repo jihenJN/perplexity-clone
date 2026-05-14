@@ -14,7 +14,7 @@ function SearchQueryResult() {
     if (hasFetched.current) return;
     hasFetched.current = true;
     GetSearchQueryRecord();
-  }, []);
+  }, [libId]);
 
   const GetSearchQueryRecord = async () => {
     const { data: Library } = await supabase
