@@ -278,6 +278,21 @@ function DisplayResult({ searchInputRecord }) {
         return updated;
       });
 
+      // ✅ Define rollback here — placeholder now exists, all failures below need it
+      const rollback = () => {
+        setChats((prev) =>
+          prev.filter(
+            (c) => !(c._isPlaceholder && c.userSearchInput === query),
+          ),
+        );
+        setStreamingState({
+          chatIndex: null,
+          rawText: "",
+          isStreaming: false,
+          isLoadingSearch: false,
+        });
+      };
+
       let fullText = "";
       try {
         const res = await fetch("/api/chat", {
@@ -292,16 +307,12 @@ function DisplayResult({ searchInputRecord }) {
 
         if (res.status === 429) {
           addRateLimitToast();
-          setStreamingState((s) => ({
-            ...s,
-            isStreaming: false,
-            isLoadingSearch: false,
-          }));
+          rollback();
           return;
         }
         if (!res.ok) {
           console.error("Chat API error:", await res.text());
-          setStreamingState((s) => ({ ...s, isStreaming: false }));
+          rollback();
           return;
         }
 
@@ -315,7 +326,11 @@ function DisplayResult({ searchInputRecord }) {
         }
       } catch (err) {
         console.error("Streaming error:", err);
-        setStreamingState((s) => ({ ...s, isStreaming: false }));
+        rollback();
+        return;
+      }
+      if (!fullText.trim()) {
+        rollback();
         return;
       }
 
