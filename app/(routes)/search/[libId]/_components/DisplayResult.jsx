@@ -120,7 +120,7 @@ function describeSaveError(error) {
 
 // ─── Rate-limit toast ─────────────────────────────────────────────────────────
 
-function RateLimitToast({ id, resetTime, onDismiss }) {
+function SearchToast({ id, onDismiss, children }) {
   useEffect(() => {
     const t = setTimeout(() => onDismiss(id), 12_000)
     return () => clearTimeout(t)
@@ -134,11 +134,7 @@ function RateLimitToast({ id, resetTime, onDismiss }) {
     >
       <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-300" />
       <span className="flex-1 leading-snug">
-        Rate limit reached. Limits reset at <strong>{resetTime}</strong>.{" "}
-        <a href="" target="_blank" rel="noreferrer" className="underline text-amber-200 hover:text-white">
-          Explore our Pro plan
-        </a>{" "}
-        for higher limits.
+        {children}
       </span>
       <button
         onClick={() => onDismiss(id)}
@@ -148,6 +144,26 @@ function RateLimitToast({ id, resetTime, onDismiss }) {
         <X className="w-4 h-4" />
       </button>
     </div>
+  )
+}
+
+function RateLimitToast({ id, resetTime, onDismiss }) {
+  return (
+    <SearchToast id={id} onDismiss={onDismiss}>
+        Rate limit reached. Limits reset at <strong>{resetTime}</strong>.{" "}
+        <a href="" target="_blank" rel="noreferrer" className="underline text-amber-200 hover:text-white">
+          Explore our Pro plan
+        </a>{" "}
+        for higher limits.
+    </SearchToast>
+  )
+}
+
+function EmptyResponseToast({ id, onDismiss }) {
+  return (
+    <SearchToast id={id} onDismiss={onDismiss}>
+      This model returned an empty response. Please try again or switch to another model.
+    </SearchToast>
   )
 }
 
@@ -255,7 +271,10 @@ function DisplayResult() {
     (id) => setToasts((prev) => prev.filter((t) => t.id !== id)), []
   )
   const addRateLimitToast = useCallback(() => {
-    setToasts((prev) => [...prev, { id: Date.now(), resetTime: getResetTime() }])
+    setToasts((prev) => [...prev, { id: crypto.randomUUID(), type: "rate-limit", resetTime: getResetTime() }])
+  }, [])
+  const addEmptyResponseToast = useCallback(() => {
+    setToasts((prev) => [...prev, { id: crypto.randomUUID(), type: "empty-response" }])
   }, [])
 
   const flushStreamText = useCallback(() => {
@@ -406,7 +425,11 @@ function DisplayResult() {
       return
     }
 
-    if (!fullText.trim()) { rollback(); return }
+    if (!fullText.trim()) {
+      addEmptyResponseToast()
+      rollback()
+      return
+    }
     if (streamFrameRef.current) {
       cancelAnimationFrame(streamFrameRef.current)
       streamFrameRef.current = null
@@ -450,7 +473,7 @@ function DisplayResult() {
       if (!libErr) libraryInserted.current = true
       if (!chatErr) clearLocalChats(libId)
     }).catch((err) => console.warn("Background save skipped:", describeSaveError(err)))
-  }, [addRateLimitToast, libId, queueStreamText, selectedModelId, user])
+  }, [addEmptyResponseToast, addRateLimitToast, libId, queueStreamText, selectedModelId, user])
 
   const handleSubmit = useCallback(() => {
     if (!userInput?.trim() || isBusy) return
@@ -473,7 +496,11 @@ function DisplayResult() {
       >
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto animate-in slide-in-from-right-4 fade-in duration-200">
-            <RateLimitToast id={toast.id} resetTime={toast.resetTime} onDismiss={dismissToast} />
+            {toast.type === "empty-response" ? (
+              <EmptyResponseToast id={toast.id} onDismiss={dismissToast} />
+            ) : (
+              <RateLimitToast id={toast.id} resetTime={toast.resetTime} onDismiss={dismissToast} />
+            )}
           </div>
         ))}
       </div>
