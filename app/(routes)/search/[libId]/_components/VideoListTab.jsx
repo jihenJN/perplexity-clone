@@ -4,7 +4,7 @@ import { Loader2Icon, PlayCircle } from "lucide-react";
 import { useSearchMedia } from "./useSearchMedia";
 
 function VideoListTab({ chat }) {
-  const { items: videos, loading } = useSearchMedia(
+  const { items: videos, loading, error } = useSearchMedia(
     chat?.userSearchInput,
     "/api/video-search",
     "videos",
@@ -16,6 +16,14 @@ function VideoListTab({ chat }) {
         <Loader2Icon className="animate-spin w-6 h-6 mr-2" />
         <span className="text-sm">Loading videos...</span>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <p className="text-sm text-red-500 mt-6 text-center">
+        {error}
+      </p>
     );
   }
 

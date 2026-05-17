@@ -114,6 +114,10 @@ async function saveLibraryIfMissing(payload) {
   return supabase.from("Library").insert([payload])
 }
 
+function describeSaveError(error) {
+  return error?.message || error?.details || error?.hint || error?.code || "Unknown save issue"
+}
+
 // ─── Rate-limit toast ─────────────────────────────────────────────────────────
 
 function RateLimitToast({ id, resetTime, onDismiss }) {
@@ -441,11 +445,11 @@ function DisplayResult() {
           })
         : Promise.resolve({ error: null, skipped: true }),
     ]).then(([{ error: chatErr }, { error: libErr }]) => {
-      if (chatErr) console.error("Chats save failed:", chatErr)
-      if (libErr) console.error("Library save failed:", libErr)
+      if (chatErr) console.warn("Chats save skipped:", describeSaveError(chatErr))
+      if (libErr) console.warn("Library save skipped:", describeSaveError(libErr))
       if (!libErr) libraryInserted.current = true
       if (!chatErr) clearLocalChats(libId)
-    }).catch(console.error)
+    }).catch((err) => console.warn("Background save skipped:", describeSaveError(err)))
   }, [addRateLimitToast, libId, queueStreamText, selectedModelId, user])
 
   const handleSubmit = useCallback(() => {
