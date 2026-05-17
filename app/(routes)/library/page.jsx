@@ -8,20 +8,31 @@ import React, { useEffect, useState } from "react";
 
 function Library() {
   const { user } = useUser();
-  const [libraryHistory, setLibraryHistory] = useState();
+  const [libraryHistory, setLibraryHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    user && GetLibraryHistory();
+    if (user) GetLibraryHistory();
   }, [user]);
 
   const GetLibraryHistory = async () => {
-    let { data: Library, error } = await supabase
+    setLoading(true);
+    const { data, error } = await supabase
       .from("Library")
       .select("*")
       .eq("userEmail", user?.primaryEmailAddress?.emailAddress)
       .order("id", { ascending: false });
-    setLibraryHistory(Library);
+
+    if (error) {
+      console.error("Library fetch error:", error);
+      setLibraryHistory([]);
+      setLoading(false);
+      return;
+    }
+
+    setLibraryHistory(data ?? []);
+    setLoading(false);
   };
 
   return (
@@ -33,7 +44,15 @@ function Library() {
       </div>
 
       {/* Empty state */}
-      {libraryHistory?.length === 0 && (
+      {loading && (
+        <div className="mt-2 space-y-2">
+          {[1, 2, 3].map((item) => (
+            <div key={item} className="h-16 rounded-xl bg-gray-100 animate-pulse" />
+          ))}
+        </div>
+      )}
+
+      {!loading && libraryHistory.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-gray-400">
           <BookOpen className="h-12 w-12 mb-3 opacity-30" />
           <p className="text-sm">No searches saved yet.</p>
@@ -42,9 +61,9 @@ function Library() {
 
       {/* List */}
       <div className="mt-2 space-y-1">
-        {libraryHistory?.map((item, index) => (
+        {!loading && libraryHistory.map((item) => (
           <div
-            key={index}
+            key={item.id ?? item.libId}
             className="cursor-pointer group rounded-xl px-3 py-3 sm:px-4 sm:py-4 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
             onClick={() => router.push("/search/" + item.libId)}
           >

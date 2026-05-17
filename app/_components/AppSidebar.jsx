@@ -11,6 +11,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import Image from "next/image";
+import Link from "next/link";
 import { Compass, GalleryHorizontalEnd, LogIn, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -66,13 +67,13 @@ function AppSidebar() {
               {MenuOptions.map((menu, index) => (
                 <SidebarMenuItem key={index}>
                   <SidebarMenuButton className={"p-5 y-5"}>
-                    <a
+                    <Link
                       href={menu.path}
-                      className={`h-8 w-8 flex gap-5 items-center hover:bg-transparent hover:font-bold ${path?.includes(menu.path) && "font-bold"}`}
+                      className={`h-8 w-8 flex gap-5 items-center hover:bg-transparent hover:font-bold ${path === menu.path && "font-bold"}`}
                     >
                       <menu.icon />
                       <span className="text-lg">{menu.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

@@ -1,32 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Loader2Icon } from "lucide-react";
+import { useSearchMedia } from "./useSearchMedia";
 
 function ImageListTab({ chat }) {
-  const [images, setImages] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
-
-  useEffect(() => {
-    if (!chat?.userSearchInput) return;
-    fetchImages(chat.userSearchInput);
-  }, [chat?.userSearchInput]);
-
-  const fetchImages = async (query) => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/image-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ searchInput: query }),
-      });
-      const data = await res.json();
-      setImages(data?.images ?? []);
-    } catch (err) {
-      console.error("Image fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { items: images, loading } = useSearchMedia(
+    chat?.userSearchInput,
+    "/api/image-search",
+    "images",
+  );
 
   if (loading) {
     return (

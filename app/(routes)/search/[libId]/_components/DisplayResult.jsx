@@ -6,7 +6,6 @@ import {
   LucideVideo, Mic, Plus, ArrowUp, AlertTriangle, X,
 } from "lucide-react"
 import AnswerDisplay from "./AnswerDisplay"
-import axios from "axios"
 import { useParams } from "next/navigation"
 import { useUser } from "@clerk/nextjs"
 import { supabase } from "@/app/services/Supabase"
@@ -71,6 +70,50 @@ function mergeChats(dbChats, localChats) {
   return result
 }
 
+async function postJson(url, payload) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
+    const message = await res.text().catch(() => "")
+    const error = new Error(message || `Request failed with ${res.status}`)
+    error.status = res.status
+    throw error
+  }
+
+  return res.json()
+}
+
+async function saveChatIfMissing(payload) {
+  const { data: existing, error: lookupError } = await supabase
+    .from("Chats")
+    .select("id")
+    .eq("libId", payload.libId)
+    .eq("userSearchInput", payload.userSearchInput)
+    .limit(1)
+
+  if (lookupError) return { error: lookupError }
+  if (existing?.length) return { error: null, skipped: true }
+
+  return supabase.from("Chats").insert([payload])
+}
+
+async function saveLibraryIfMissing(payload) {
+  const { data: existing, error: lookupError } = await supabase
+    .from("Library")
+    .select("id")
+    .eq("libId", payload.libId)
+    .limit(1)
+
+  if (lookupError) return { error: lookupError }
+  if (existing?.length) return { error: null, skipped: true }
+
+  return supabase.from("Library").insert([payload])
+}
+
 // ─── Rate-limit toast ─────────────────────────────────────────────────────────
 
 function RateLimitToast({ id, resetTime, onDismiss }) {
@@ -106,7 +149,7 @@ function RateLimitToast({ id, resetTime, onDismiss }) {
 
 // ─── Per-chat result ──────────────────────────────────────────────────────────
 
-function ChatResult({ chat, index, streamingState, onFollowUp }) {
+const ChatResult = React.memo(function ChatResult({ chat, index, streamingState, onFollowUp }) {
   const [activeTab, setActiveTab] = useState("Answer")
   const isStreamingThis = index === streamingState.chatIndex
 
@@ -116,7 +159,7 @@ function ChatResult({ chat, index, streamingState, onFollowUp }) {
   }, [isStreamingThis, streamingState.rawText, chat.aiResp, chat.followUps])
 
   return (
-    <div className="mt-5 sm:mt-7">
+    <div id={chat.anchorId} className="mt-5 sm:mt-7 scroll-mt-16">
      <div className="flex justify-end mb-6">
   <div
     className="max-w-[75%] text-white px-4 py-3 rounded-[20px] rounded-tr-[5px] text-sm sm:text-[15px] leading-relaxed font-medium shadow-sm"
@@ -167,7 +210,15 @@ function ChatResult({ chat, index, streamingState, onFollowUp }) {
       <hr className="my-5" />
     </div>
   )
-}
+}, (prev, next) => {
+  if (prev.chat !== next.chat || prev.index !== next.index || prev.onFollowUp !== next.onFollowUp) {
+    return false
+  }
+
+  const wasStreaming = prev.index === prev.streamingState.chatIndex
+  const isStreaming = next.index === next.streamingState.chatIndex
+  return !wasStreaming && !isStreaming
+})
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -184,10 +235,12 @@ function DisplayResult() {
   })
   const [userInput, setUserInput] = useState("")
 
-  const sessionInitialized = useRef(false)
-  const pendingQueryRef    = useRef(null)
+  const startedQueries     = useRef(new Set())
+  const activeSearches     = useRef(new Set())
   const libraryInserted    = useRef(false)
   const textareaRef        = useRef(null)
+  const streamFrameRef     = useRef(null)
+  const streamTextRef      = useRef("")
 
   const { open, isMobile } = useSidebar()
   const sidebarOffset = !isMobile && open ? "var(--sidebar-width, 16rem)" : "0px"
@@ -201,31 +254,44 @@ function DisplayResult() {
     setToasts((prev) => [...prev, { id: Date.now(), resetTime: getResetTime() }])
   }, [])
 
+  const flushStreamText = useCallback(() => {
+    streamFrameRef.current = null
+    setStreamingState((s) => ({ ...s, rawText: streamTextRef.current }))
+  }, [])
+
+  const queueStreamText = useCallback((text) => {
+    streamTextRef.current = text
+    if (streamFrameRef.current) return
+    streamFrameRef.current = requestAnimationFrame(flushStreamText)
+  }, [flushStreamText])
+
+  useEffect(() => () => {
+    if (streamFrameRef.current) cancelAnimationFrame(streamFrameRef.current)
+  }, [])
+
   // Effect 1: load DB + local buffer
   useEffect(() => {
     if (!libId) return
+    let cancelled = false
+
     supabase
       .from("Chats")
       .select("*")
       .eq("libId", libId)
       .order("id", { ascending: true })
       .then(({ data, error }) => {
+        if (cancelled) return
         if (error) console.error("Chats fetch error:", error)
         const dbChats    = (data ?? []).filter((c) => c.aiResp)
         const localChats = readLocalChats(libId)
         const merged     = mergeChats(dbChats, localChats)
         if (merged.length) {
-          setChats(merged)
+          setChats((prev) => mergeChats(prev, merged))
           setCurrentQuery(merged[0]?.userSearchInput ?? "")
           libraryInserted.current = true
         }
-        sessionInitialized.current = true
-        if (pendingQueryRef.current) {
-          const { query, type } = pendingQueryRef.current
-          pendingQueryRef.current = null
-          runSearch(query, selectedModelId, type)
-        }
       })
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [libId])
 
@@ -233,14 +299,13 @@ function DisplayResult() {
   useEffect(() => {
     if (!pendingSearch) return
     const { query, type } = pendingSearch
+    const queryKey = `${libId}:${query}:${type}`
     clearPendingSearch()
-    if (sessionInitialized.current) {
-      runSearch(query, selectedModelId, type)
-    } else {
-      pendingQueryRef.current = { query, type }
-    }
+    if (startedQueries.current.has(queryKey)) return
+    startedQueries.current.add(queryKey)
+    runSearch(query, selectedModelId, type)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingSearch])
+  }, [pendingSearch, libId])
 
   // Auto-resize textarea
   useEffect(() => {
@@ -251,23 +316,38 @@ function DisplayResult() {
   }, [userInput])
 
   const runSearch = useCallback(async (query, modelId = selectedModelId, type = "search") => {
-    if (!query?.trim()) return
+    const searchQuery = query?.trim()
+    if (!searchQuery) return
+
+    const activeKey = `${type}:${searchQuery.toLowerCase()}`
+    if (activeSearches.current.has(activeKey)) return
+    activeSearches.current.add(activeKey)
+
+    const requestId = crypto.randomUUID()
+    const anchorId = `chat-${requestId}`
+    const finishSearch = () => activeSearches.current.delete(activeKey)
+
     setStreamingState({ chatIndex: null, rawText: "", isStreaming: false, isLoadingSearch: true })
+    streamTextRef.current = ""
 
     let formattedSearchResp = []
     try {
-      const result = await axios.post("/api/web-search", { searchInput: query, searchType: type })
-      formattedSearchResp = result.data?.organic_results ?? []
+      const data = await postJson("/api/web-search", { searchInput: searchQuery, searchType: type })
+      formattedSearchResp = data?.organic_results ?? []
     } catch (err) {
-      if (err?.response?.status === 429) addRateLimitToast()
+      if (err?.status === 429) addRateLimitToast()
       else console.error("Web search failed:", err)
       setStreamingState((s) => ({ ...s, isLoadingSearch: false }))
+      finishSearch()
       return
     }
 
     const placeholderChat = {
       _isPlaceholder: true,
-      userSearchInput: query,
+      id: `placeholder-${requestId}`,
+      requestId,
+      anchorId,
+      userSearchInput: searchQuery,
       searchResult: formattedSearchResp,
       aiResp: null,
       followUps: [],
@@ -284,12 +364,19 @@ function DisplayResult() {
       }))
       return updated
     })
+    requestAnimationFrame(() => {
+      document.getElementById(anchorId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      })
+    })
 
     const rollback = () => {
       setChats((prev) => prev.filter(
-        (c) => !(c._isPlaceholder && c.userSearchInput === query)
+        (c) => c.requestId !== requestId
       ))
       setStreamingState({ chatIndex: null, rawText: "", isStreaming: false, isLoadingSearch: false })
+      finishSearch()
     }
 
     let fullText = ""
@@ -297,7 +384,7 @@ function DisplayResult() {
       const res = await fetch("/api/chat", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ searchInput: query, searchResult: formattedSearchResp, modelId }),
+        body:    JSON.stringify({ searchInput: searchQuery, searchResult: formattedSearchResp, modelId }),
       })
       if (res.status === 429) { addRateLimitToast(); rollback(); return }
       if (!res.ok)            { console.error("Chat API error:", await res.text()); rollback(); return }
@@ -307,7 +394,7 @@ function DisplayResult() {
         const { done, value } = await reader.read()
         if (done) break
         fullText += decoder.decode(value, { stream: true })
-        setStreamingState((s) => ({ ...s, rawText: fullText }))
+        queueStreamText(fullText)
       }
     } catch (err) {
       console.error("Streaming error:", err)
@@ -316,44 +403,50 @@ function DisplayResult() {
     }
 
     if (!fullText.trim()) { rollback(); return }
+    if (streamFrameRef.current) {
+      cancelAnimationFrame(streamFrameRef.current)
+      streamFrameRef.current = null
+    }
 
     const { cleanAnswer, followUps: parsed } = extractFollowUps(fullText)
-    setStreamingState((s) => ({ ...s, isStreaming: false }))
+    setStreamingState((s) => ({ ...s, rawText: fullText, isStreaming: false }))
 
     const insertPayload = {
       libId,
       searchResult:    formattedSearchResp,
-      userSearchInput: query,
+      userSearchInput: searchQuery,
       aiResp:          cleanAnswer,
       followUps:       parsed,
     }
-    const completedChat = { ...insertPayload, id: crypto.randomUUID() }
+    const completedChat = { ...insertPayload, id: crypto.randomUUID(), requestId, anchorId }
 
     setChats((prev) => {
       const updated = prev.map((chat) =>
-        chat._isPlaceholder && chat.userSearchInput === query ? completedChat : chat
+        chat.requestId === requestId ? completedChat : chat
       )
       writeLocalChats(libId, updated)
       return updated
     })
     setStreamingState({ chatIndex: null, rawText: "", isStreaming: false, isLoadingSearch: false })
+    finishSearch()
 
     Promise.all([
-      supabase.from("Chats").insert([insertPayload]),
+      saveChatIfMissing(insertPayload),
       !libraryInserted.current
-        ? supabase.from("Library").insert([{
-            searchInput: query,
+        ? saveLibraryIfMissing({
+            searchInput: searchQuery,
             userEmail:   user?.primaryEmailAddress?.emailAddress,
             type,
             libId,
-          }])
-        : Promise.resolve({ error: null }),
+          })
+        : Promise.resolve({ error: null, skipped: true }),
     ]).then(([{ error: chatErr }, { error: libErr }]) => {
-      if (chatErr) { console.error("Chats insert failed:", chatErr); return }
+      if (chatErr) console.error("Chats save failed:", chatErr)
+      if (libErr) console.error("Library save failed:", libErr)
       if (!libErr) libraryInserted.current = true
-      clearLocalChats(libId)
+      if (!chatErr) clearLocalChats(libId)
     }).catch(console.error)
-  }, [addRateLimitToast, libId, selectedModelId, user])
+  }, [addRateLimitToast, libId, queueStreamText, selectedModelId, user])
 
   const handleSubmit = useCallback(() => {
     if (!userInput?.trim() || isBusy) return
@@ -361,12 +454,17 @@ function DisplayResult() {
     setUserInput("")
   }, [userInput, isBusy, runSearch, selectedModelId])
 
+  const handleFollowUp = useCallback((query) => {
+    if (isBusy) return
+    runSearch(query, selectedModelId)
+  }, [isBusy, runSearch, selectedModelId])
+
   return (
     <div className="mt-5 sm:mt-7 pb-32">
 
       {/* Toast stack */}
       <div
-        className="fixed bottom-24 right-4 z-[60] flex flex-col gap-2 items-end pointer-events-none"
+        className="fixed bottom-24 right-4 z-60 flex flex-col gap-2 items-end pointer-events-none"
         aria-live="polite"
       >
         {toasts.map((toast) => (
@@ -394,13 +492,13 @@ function DisplayResult() {
             chat={chat}
             index={index}
             streamingState={streamingState}
-            onFollowUp={(q) => runSearch(q, selectedModelId)}
+            onFollowUp={handleFollowUp}
           />
         ))}
 
       {/* Fixed input bar */}
       <div
-        className="fixed bottom-0 flex justify-center items-end pb-4 pt-8 pointer-events-none bg-gradient-to-t from-white via-white/90 to-transparent z-50"
+        className="fixed bottom-0 flex justify-center items-end pb-4 pt-8 pointer-events-none bg-linear-to-t from-white via-white/90 to-transparent z-50"
         style={{ left: sidebarOffset, right: 0, transition: "left 200ms ease" }}
       >
         <div className="pointer-events-auto w-full mx-4 sm:mx-8 md:mx-16 lg:mx-28 xl:mx-48 bg-white border border-gray-300 rounded-3xl shadow-sm px-4 py-3 flex flex-col gap-3">
@@ -409,7 +507,7 @@ function DisplayResult() {
             rows={1}
             value={userInput}
             placeholder="Ask anything..."
-            className="w-full resize-none outline-none text-sm sm:text-[15px] bg-transparent leading-6 max-h-[200px] overflow-y-auto placeholder:text-gray-400 text-gray-800"
+            className="w-full resize-none outline-none text-sm sm:text-[15px] bg-transparent leading-6 max-h-50 overflow-y-auto placeholder:text-gray-400 text-gray-800"
             onChange={(e) => setUserInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit() }
@@ -417,7 +515,7 @@ function DisplayResult() {
           />
           <div className="flex items-center justify-between">
             <Button variant="ghost" className="flex items-center justify-center w-8 h-8 text-gray-500 hover:bg-gray-100">
-                <Plus className="w-[18px] h-[18px]" />
+                <Plus className="size-[18px]" />
               </Button>
             <div className="flex items-center gap-1">
               
@@ -435,10 +533,10 @@ function DisplayResult() {
               }`}
             >
               {isBusy
-                ? <Loader2Icon className="w-[18px] h-[18px] animate-spin" />
+                ? <Loader2Icon className="size-[18px] animate-spin" />
                 : hasInput
-                  ? <ArrowUp className="w-[15px] h-[15px]" />
-                  : <Mic className="w-[18px] h-[18px]" />}
+                  ? <ArrowUp className="size-[15px]" />
+                  : <Mic className="size-[18px]" />}
             </Button>
             </div>
            

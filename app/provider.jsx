@@ -7,27 +7,40 @@ import { UserDetailContext } from "./context/UserDetailContext";
 function Provider({ children }) {
   const { user } = useUser();
   const [userDetail,setUserDetail]=useState();
-  useEffect(()=>{user && CreateNewUser();},[user])
-  const CreateNewUser = async () => {
-    //if a user already exist
+  useEffect(() => {
+    if (user) CreateNewUser();
+  }, [user])
 
-    let { data: Users, error } = await supabase
+  const CreateNewUser = async () => {
+    const email = user?.primaryEmailAddress?.emailAddress;
+    if (!email) return;
+
+    const { data: users, error } = await supabase
       .from("Users")
       .select("*")
-      .eq("email", user.primaryEmailAddress.emailAddress);
-      console.log("Users:", Users);
-      console.log("Error:", error);
-    if (Users.length == 0) {
-      const { data, error } = await supabase
+      .eq("email", email);
+
+    if (error) {
+      console.error("Users fetch error:", error);
+      return;
+    }
+
+    if (!users?.length) {
+      const { data, error: insertError } = await supabase
         .from("Users")
-        .insert([{ name: user?.fullName, email: user.primaryEmailAddress.emailAddress }])
+        .insert([{ name: user?.fullName, email }])
         .select();
-         console.log(data)
-         setUserDetail(data[0]);
-         return ;  
+
+      if (insertError) {
+        console.error("Users insert error:", insertError);
+        return;
+      }
+
+      setUserDetail(data?.[0]);
+      return;
     }
     
-    setUserDetail(Users[0]);
+    setUserDetail(users[0]);
   };
 
   return ( 

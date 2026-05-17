@@ -49,6 +49,7 @@ function ChatInputBox() {
         width={180}
         height={150}
         className="w-36 sm:w-48 md:w-64 h-auto"
+        style={{ height: "auto" }}
         priority
       />
 

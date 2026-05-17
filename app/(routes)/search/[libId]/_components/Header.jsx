@@ -1,8 +1,38 @@
+"use client"
+
 import { Button } from '@/components/ui/button'
 import { UserButton } from '@clerk/nextjs'
 import { Clock, Link, Send } from 'lucide-react'
 import moment from 'moment/moment'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+
+function ClientUserButton() {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return <div className='h-7 w-7 rounded-full bg-gray-100' aria-hidden='true' />
+  }
+
+  return <UserButton />
+}
+
+function RelativeTime({ date, className }) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  return (
+    <span className={className} suppressHydrationWarning>
+      {mounted && date ? moment(date).fromNow() : ''}
+    </span>
+  )
+}
 
 function Header({ searchInputRecord }) {
   return (
@@ -13,10 +43,10 @@ function Header({ searchInputRecord }) {
         {/* Row 1: avatar + timestamp on left, action buttons on right */}
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
-            <UserButton />
+            <ClientUserButton />
             <div className='flex items-center gap-1 text-gray-500'>
               <Clock className='h-4 w-4 shrink-0' />
-              <span className='text-xs'>{moment(searchInputRecord?.created_at).fromNow()}</span>
+              <RelativeTime className='text-xs' date={searchInputRecord?.created_at} />
             </div>
           </div>
 
@@ -44,10 +74,10 @@ function Header({ searchInputRecord }) {
       <div className='hidden sm:flex items-center justify-between gap-4'>
         {/* Left: avatar + timestamp */}
         <div className='flex items-center gap-2 shrink-0'>
-          <UserButton />
+          <ClientUserButton />
           <div className='flex items-center gap-1 text-gray-500'>
             <Clock className='h-4 w-4' />
-            <span className='text-sm'>{moment(searchInputRecord?.created_at).fromNow()}</span>
+            <RelativeTime className='text-sm' date={searchInputRecord?.created_at} />
           </div>
         </div>
 

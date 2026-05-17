@@ -2,9 +2,14 @@
 const nextConfig = {
   /* config options here */
   devIndicators: { position: 'top-right' },
-  images:{
-    domains:['serpapi.com']
-  }
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'serpapi.com',
+      },
+    ],
+  },
 };
 
 export default nextConfig;

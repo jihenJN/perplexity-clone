@@ -1,32 +1,14 @@
 // components/VideoListTab.jsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Loader2Icon, PlayCircle } from "lucide-react";
+import { useSearchMedia } from "./useSearchMedia";
 
 function VideoListTab({ chat }) {
-  const [videos, setVideos] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!chat?.userSearchInput) return;
-    fetchVideos(chat.userSearchInput);
-  }, [chat?.userSearchInput]);
-
-  const fetchVideos = async (query) => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/video-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ searchInput: query }),
-      });
-      const data = await res.json();
-      setVideos(data?.videos ?? []);
-    } catch (err) {
-      console.error("Video fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { items: videos, loading } = useSearchMedia(
+    chat?.userSearchInput,
+    "/api/video-search",
+    "videos",
+  );
 
   if (loading) {
     return (
