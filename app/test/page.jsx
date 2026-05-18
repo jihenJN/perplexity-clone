@@ -2,33 +2,24 @@
 import { useState } from "react";
 
 const MODELS = [
-  { id: "inclusionai/ring-2.6-1t:free", label: "Ring 2.6 1T" },
-  { id: "baidu/cobuddy:free", label: "Baidu CoBuddy" },
-  { id: "openrouter/owl-alpha", label: "Owl Alpha" },
-  { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", label: "Nemotron Nano Omni 30B" },
-  { id: "poolside/laguna-xs.2:free", label: "Laguna XS.2" },
-  { id: "poolside/laguna-m.1:free", label: "Laguna M.1" },
-  { id: "deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash" },
-  { id: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B MoE" },
-  { id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B" },
-  { id: "arcee-ai/trinity-large-thinking:free", label: "Trinity Large Thinking" },
-  { id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super 120B" },
-  { id: "minimax/minimax-m2.5:free", label: "MiniMax M2.5" },
-  { id: "openrouter/free", label: "OpenRouter Free Router" },
-  { id: "liquid/lfm-2.5-1.2b-thinking:free", label: "LFM 1.2B Thinking" },
-  { id: "liquid/lfm-2.5-1.2b-instruct:free", label: "LFM 1.2B Instruct" },
-  { id: "nvidia/nemotron-3-nano-30b-a3b:free", label: "Nemotron 3 Nano 30B" },
-  { id: "nvidia/nemotron-nano-12b-v2-vl:free", label: "Nemotron Nano 12B VL" },
-  { id: "qwen/qwen3-next-80b-a3b-instruct:free", label: "Qwen3 Next 80B" },
-  { id: "nvidia/nemotron-nano-9b-v2:free", label: "Nemotron Nano 9B V2" },
-  { id: "openai/gpt-oss-120b:free", label: "GPT OSS 120B" },
-  { id: "openai/gpt-oss-20b:free", label: "GPT OSS 20B" },
-  { id: "z-ai/glm-4.5-air:free", label: "GLM 4.5 Air" },
-  { id: "qwen/qwen3-coder:free", label: "Qwen3 Coder 480B" },
-  { id: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", label: "Venice Uncensored" },
-  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B" },
-  { id: "meta-llama/llama-3.2-3b-instruct:free", label: "Llama 3.2 3B" },
-  { id: "nousresearch/hermes-3-llama-3.1-405b:free", label: "Hermes 3 405B" },
+  { provider: "groq", id: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
+  { provider: "groq", id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile" },
+  { provider: "cerebras", id: "llama3.1-8b", label: "Llama 3.1 8B" },
+  { provider: "cerebras", id: "gpt-oss-120b", label: "GPT OSS 120B" },
+  { provider: "cerebras", id: "qwen-3-235b-a22b-instruct-2507", label: "Qwen 3 235B Preview" },
+  { provider: "nvidia", id: "nvidia/llama-3.1-nemotron-70b-instruct", label: "Nemotron 70B" },
+  { provider: "nvidia", id: "meta/llama-3.1-8b-instruct", label: "Llama 3.1 8B" },
+  { provider: "agentrouter", id: "auto", label: "Auto Router" },
+  { provider: "openrouter", id: "deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash" },
+  { provider: "openrouter", id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B" },
+  { provider: "openrouter", id: "qwen/qwen3-coder:free", label: "Qwen3 Coder 480B" },
+  { provider: "openrouter", id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super 120B" },
+  { provider: "openrouter", id: "openai/gpt-oss-120b:free", label: "GPT OSS 120B" },
+  { provider: "openrouter", id: "openai/gpt-oss-20b:free", label: "GPT OSS 20B" },
+  { provider: "openrouter", id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B" },
+  { provider: "openrouter", id: "openrouter/free", label: "OpenRouter Free Router" },
+  { provider: "gemini", id: "gemini-flash-lite-latest", label: "Flash Lite" },
+  { provider: "gemini", id: "gemini-flash-latest", label: "Flash" },
 ];
 
 const PROMPT = `You are given a broken JavaScript function:
@@ -67,10 +58,19 @@ export default function TestPage() {
       const res = await fetch("/api/test-models/single", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modelId: model.id, prompt: PROMPT }),
+        body: JSON.stringify({ provider: model.provider, modelId: model.id, prompt: PROMPT }),
       });
       const data = await res.json();
       const ms = Date.now() - start;
+      if (!res.ok) {
+        return {
+          ...model,
+          status: "error",
+          error: data?.error?.message ?? data?.error ?? `HTTP ${res.status}`,
+          ms,
+          httpStatus: res.status,
+        };
+      }
       const response = data.choices?.[0]?.message?.content ?? "(empty)";
       return { ...model, status: response === "(empty)" ? "empty" : "ok", response, ms, httpStatus: res.status };
     } catch (e) {
@@ -130,7 +130,7 @@ export default function TestPage() {
               border: "none", borderRadius: 8, cursor: running ? "not-allowed" : "pointer",
             }}
           >
-            {running ? "Running..." : results.length ? "Run again" : "▶ Run all models"}
+            {running ? "Running..." : results.length ? "Run again" : "Run all models"}
           </button>
         </div>
       </div>
@@ -175,17 +175,20 @@ export default function TestPage() {
       {/* Cards */}
       {results.length === 0 ? (
         <div style={{ textAlign: "center", padding: "4rem 1rem", color: "#9ca3af", fontSize: 14 }}>
-          Hit "Run all models" to test all 27 free models at once
+          Hit "Run all models" to compare free-tier models across providers
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.map((r) => {
             const s = STATUS_STYLES[r.status] ?? STATUS_STYLES.loading;
             return (
-              <div key={r.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "14px 16px" }}>
+              <div key={`${r.provider}:${r.id}`} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "14px 16px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, fontWeight: 600, background: s.bg, color: s.color }}>
                     {s.label}
+                  </span>
+                  <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: "#f3f4f6", color: "#4b5563", textTransform: "uppercase" }}>
+                    {r.provider}
                   </span>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>{r.label}</span>
                   {r.ms && <span style={{ fontSize: 12, color: "#9ca3af" }}>{(r.ms / 1000).toFixed(1)}s</span>}
