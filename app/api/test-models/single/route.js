@@ -26,6 +26,37 @@ const PROVIDERS = {
   },
 };
 
+// ─── Safe JSON parser: handles HTML error pages from providers ────────────────
+async function safeJson(res) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Provider returned non-JSON (e.g. Cloudflare HTML block page)
+    const preview = text.slice(0, 120).replace(/\s+/g, " ").trim();
+    throw new Error(
+      `Provider returned non-JSON (HTTP ${res.status}): ${preview}…`
+    );
+  }
+}
+
+// ─── Fetch that preserves POST body across 307/308 redirects ─────────────────
+async function fetchWithRedirect(url, options, maxRedirects = 3) {
+  let currentUrl = url;
+  for (let i = 0; i <= maxRedirects; i++) {
+    const res = await fetch(currentUrl, { ...options, redirect: "manual" });
+    if (res.status === 307 || res.status === 308) {
+      const location = res.headers.get("location");
+      if (!location) throw new Error(`${res.status} redirect with no Location header`);
+      // Resolve relative URLs
+      currentUrl = new URL(location, currentUrl).href;
+      continue;
+    }
+    return res;
+  }
+  throw new Error(`Too many redirects (>${maxRedirects})`);
+}
+
 export async function POST(req) {
   const { modelId, prompt, provider = "openrouter" } = await req.json();
   const providerConfig = PROVIDERS[provider];
@@ -46,7 +77,7 @@ export async function POST(req) {
 
   try {
     if (provider === "gemini") {
-      const res = await fetch(
+      const res = await fetchWithRedirect(
         `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${providerConfig.apiKey}`,
         {
           method: "POST",
@@ -59,7 +90,7 @@ export async function POST(req) {
         },
       );
 
-      const data = await res.json();
+      const data = await safeJson(res);
       const text = data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
         .filter(Boolean)
@@ -74,7 +105,7 @@ export async function POST(req) {
       );
     }
 
-    const res = await fetch(providerConfig.baseURL, {
+    const res = await fetchWithRedirect(providerConfig.baseURL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${providerConfig.apiKey}`,
@@ -94,7 +125,7 @@ export async function POST(req) {
       }),
     });
 
-    const data = await res.json();
+    const data = await safeJson(res);
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
     return NextResponse.json(

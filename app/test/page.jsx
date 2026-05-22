@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 // ─── Provider metadata: colors, rate-limit info ───────────────────────────────
 const PROVIDERS = {
@@ -47,78 +47,18 @@ const PROVIDERS = {
   },
 };
 
-// ─── Models ───────────────────────────────────────────────────────────────────
-const MODELS = [
-  // Groq — fastest inference, LPU hardware
-  { provider: "groq", id: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant", ctx: "128K", rpd: "14.4K" },
-  { provider: "groq", id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile", ctx: "128K", rpd: "1K" },
-  { provider: "groq", id: "llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout 17B", ctx: "128K", rpd: "1K" },
-  { provider: "groq", id: "deepseek-r1-distill-llama-70b", label: "DeepSeek R1 Distill 70B", ctx: "128K", rpd: "1K" },
-  { provider: "groq", id: "gemma2-9b-it", label: "Gemma 2 9B", ctx: "8K", rpd: "1K" },
-  { provider: "groq", id: "mistral-saba-24b", label: "Mistral Saba 24B", ctx: "32K", rpd: "1K" },
-  { provider: "groq", id: "qwen-qwq-32b", label: "Qwen QwQ 32B", ctx: "32K", rpd: "1K" },
-
-  // Cerebras — 1M tokens/day free, WSE chips
-  { provider: "cerebras", id: "llama3.1-8b", label: "Llama 3.1 8B", ctx: "8K", rpd: "~1M tok" },
-  { provider: "cerebras", id: "llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout 17B", ctx: "8K", rpd: "~1M tok" },
-  { provider: "cerebras", id: "gpt-oss-120b", label: "GPT OSS 120B", ctx: "8K", rpd: "~1M tok" },
-  { provider: "cerebras", id: "qwen-3-235b-a22b-instruct-2507", label: "Qwen 3 235B Preview", ctx: "8K", rpd: "~1M tok" },
-
-  // Gemini — Google AI Studio free tier
-  { provider: "gemini", id: "gemini-2.5-flash-lite-preview-06-17", label: "2.5 Flash-Lite", ctx: "1M", rpd: "1K" },
-  { provider: "gemini", id: "gemini-2.5-flash-preview-05-20", label: "2.5 Flash", ctx: "1M", rpd: "250" },
-  { provider: "gemini", id: "gemini-2.5-pro-preview-06-05", label: "2.5 Pro", ctx: "1M", rpd: "100" },
-
-  // NVIDIA NIM
-  { provider: "nvidia", id: "nvidia/llama-3.1-nemotron-70b-instruct", label: "Nemotron 70B", ctx: "128K", rpd: "credits" },
-  { provider: "nvidia", id: "meta/llama-3.1-8b-instruct", label: "Llama 3.1 8B", ctx: "128K", rpd: "credits" },
-  { provider: "nvidia", id: "nvidia/llama-3.3-nemotron-super-49b-v1", label: "Nemotron Super 49B", ctx: "128K", rpd: "credits" },
-
-  // OpenRouter :free models
-  { provider: "openrouter", id: "deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash", ctx: "1M", rpd: "200" },
-  { provider: "openrouter", id: "openai/gpt-oss-120b:free", label: "GPT OSS 120B", ctx: "131K", rpd: "200" },
-  { provider: "openrouter", id: "openai/gpt-oss-20b:free", label: "GPT OSS 20B", ctx: "131K", rpd: "200" },
-  { provider: "openrouter", id: "qwen/qwen3-coder:free", label: "Qwen3 Coder 480B", ctx: "262K", rpd: "200" },
-  { provider: "openrouter", id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super 120B", ctx: "1M", rpd: "200" },
-  { provider: "openrouter", id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B", ctx: "128K", rpd: "200" },
-  { provider: "openrouter", id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B", ctx: "128K", rpd: "200" },
-  { provider: "openrouter", id: "minimax/minimax-m2.5:free", label: "MiniMax M2.5", ctx: "205K", rpd: "200" },
-  { provider: "openrouter", id: "z-ai/glm-4.5-air:free", label: "GLM 4.5 Air", ctx: "131K", rpd: "200" },
-  { provider: "openrouter", id: "arcee-ai/trinity-large-preview:free", label: "Trinity Large Preview", ctx: "128K", rpd: "200" },
-  { provider: "openrouter", id: "poolside/laguna-m.1:free", label: "Laguna M.1 (coding)", ctx: "131K", rpd: "200" },
-  { provider: "openrouter", id: "openrouter/free", label: "Free Auto-Router", ctx: "varies", rpd: "200" },
-
-  // Agent Router
-  { provider: "agentrouter", id: "auto", label: "Auto Router", ctx: "—", rpd: "—" },
-];
-
-// Group models by provider preserving insertion order
+// ─── Provider display order ──────────────────────────────────────────────────
 const PROVIDER_ORDER = ["groq", "cerebras", "gemini", "nvidia", "openrouter", "agentrouter"];
-const GROUPED = PROVIDER_ORDER.map((p) => ({
-  provider: p,
-  meta: PROVIDERS[p],
-  models: MODELS.filter((m) => m.provider === p),
-}));
 
-// ─── Flat ordered index (for result tracking by position) ─────────────────────
-const FLAT_MODELS = GROUPED.flatMap((g) => g.models);
+const PROMPT = `You are an AI assistant. In 150 words or fewer, answer these three questions about yourself:
 
-const PROMPT = `You are given a broken JavaScript function:
-\`\`\`js
-function fetchData(url) {
-  let result;
-  fetch(url).then(res => res.json()).then(data => {
-    result = data;
-  });
-  return result;
-}
-\`\`\`
-Do the following:
-1. Explain why this function is broken
-2. Fix it
-3. Add error handling
-4. Give one real-world use case for it
-Be concise and clear.`;
+1. **Strengths** — What are your 2–3 most notable capabilities? (e.g. reasoning, coding, writing, vision, search…)
+
+2. **Weaknesses** — What are your 2–3 most significant limitations? (e.g. knowledge cutoff, no real-time data, hallucination risk, context length…)
+
+3. **Perplexity candidate?** — Based on the above, are you a suitable replacement for Perplexity AI (a search-augmented answer engine)? Answer Yes / Partial / No and give a one-sentence justification.
+
+Be honest, specific, and concise. Avoid marketing language.`;
 
 const STATUS_STYLES = {
   ok: { bg: "#f0fdf4", color: "#166534", label: "ok" },
@@ -128,6 +68,10 @@ const STATUS_STYLES = {
 };
 
 export default function TestPage() {
+  const [models, setModels] = useState([]);
+  const [loadingModels, setLoadingModels] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
+  const [fetchedAt, setFetchedAt] = useState(null);
   const [results, setResults] = useState({});   // keyed by `provider:id`
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(0);
@@ -135,6 +79,39 @@ export default function TestPage() {
   const [expandedProviders, setExpandedProviders] = useState(
     Object.fromEntries(PROVIDER_ORDER.map((p) => [p, true]))
   );
+
+  // ─── Fetch models dynamically from provider APIs ──────────────────────────
+  async function loadModels() {
+    setLoadingModels(true);
+    setFetchError(null);
+    try {
+      const res = await fetch("/api/fetch-models");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setModels(data.models ?? []);
+      setFetchedAt(data.fetchedAt ?? null);
+      if (data.errors && Object.keys(data.errors).length > 0) {
+        setFetchError(`Partial failure: ${Object.entries(data.errors).map(([p, e]) => `${p}: ${e}`).join(", ")}`);
+      }
+    } catch (e) {
+      setFetchError(e.message);
+    } finally {
+      setLoadingModels(false);
+    }
+  }
+
+  useEffect(() => { loadModels(); }, []);
+
+  // ─── Derived data (recomputed when models change) ─────────────────────────
+  const GROUPED = useMemo(() =>
+    PROVIDER_ORDER.map((p) => ({
+      provider: p,
+      meta: PROVIDERS[p],
+      models: models.filter((m) => m.provider === p),
+    })).filter((g) => g.models.length > 0),
+    [models]
+  );
+  const FLAT_MODELS = useMemo(() => GROUPED.flatMap((g) => g.models), [GROUPED]);
 
   function key(m) { return `${m.provider}:${m.id}`; }
 
@@ -159,6 +136,7 @@ export default function TestPage() {
   }
 
   async function runTests() {
+    if (FLAT_MODELS.length === 0) return;
     setRunning(true);
     setDone(0);
     setFilter("all");
@@ -189,6 +167,18 @@ export default function TestPage() {
     setExpandedProviders((prev) => ({ ...prev, [p]: !prev[p] }));
   }
 
+  // ─── Loading state for model fetching ──────────────────────────────────────
+  if (loadingModels) {
+    return (
+      <div style={{ maxWidth: 800, margin: "0 auto", padding: "4rem 1rem", fontFamily: "system-ui, sans-serif", textAlign: "center" }}>
+        <div style={{ fontSize: 16, color: "#6b7280", marginBottom: 8 }}>Fetching models from providers…</div>
+        <div style={{ fontSize: 12, color: "#9ca3af" }}>Querying Groq, Cerebras, Gemini, NVIDIA, OpenRouter</div>
+      </div>
+    );
+  }
+
+  const canRun = FLAT_MODELS.length > 0 && !running;
+
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "2rem 1rem", fontFamily: "system-ui, sans-serif" }}>
 
@@ -197,21 +187,36 @@ export default function TestPage() {
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Model test runner</h1>
           <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
-            {FLAT_MODELS.length} free-tier models across {PROVIDER_ORDER.length} providers
+            {FLAT_MODELS.length} free-tier models across {GROUPED.length} providers
+            {fetchedAt && <span style={{ marginLeft: 8, color: "#d1d5db" }}>· fetched {new Date(fetchedAt).toLocaleTimeString()}</span>}
           </p>
+          {fetchError && (
+            <p style={{ fontSize: 11, color: "#dc2626", margin: "4px 0 0" }}>{fetchError}</p>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            onClick={loadModels}
+            disabled={loadingModels}
+            style={{
+              padding: "6px 12px", fontSize: 12, fontWeight: 500,
+              background: "transparent", color: "#6b7280",
+              border: "1px solid #e5e7eb", borderRadius: 8, cursor: "pointer",
+            }}
+          >
+            ↻ Refresh
+          </button>
           {running && (
             <span style={{ fontSize: 13, color: "#6b7280" }}>{done}/{FLAT_MODELS.length}</span>
           )}
           <button
             onClick={runTests}
-            disabled={running}
+            disabled={!canRun}
             style={{
               padding: "8px 18px", fontSize: 13, fontWeight: 500,
-              background: running ? "#f3f4f6" : "#111827",
-              color: running ? "#9ca3af" : "#fff",
-              border: "none", borderRadius: 8, cursor: running ? "not-allowed" : "pointer",
+              background: !canRun ? "#f3f4f6" : "#111827",
+              color: !canRun ? "#9ca3af" : "#fff",
+              border: "none", borderRadius: 8, cursor: !canRun ? "not-allowed" : "pointer",
             }}
           >
             {running ? "Running…" : hasResults ? "Run again" : "Run all models"}
@@ -259,7 +264,7 @@ export default function TestPage() {
       {/* ── Empty state ── */}
       {!hasResults && (
         <div style={{ textAlign: "center", padding: "4rem 1rem", color: "#9ca3af", fontSize: 14 }}>
-          Hit "Run all models" to compare {FLAT_MODELS.length} free-tier models across {PROVIDER_ORDER.length} providers
+          Hit "Run all models" to compare {FLAT_MODELS.length} free-tier models across {GROUPED.length} providers
         </div>
       )}
 
