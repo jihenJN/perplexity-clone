@@ -87,6 +87,18 @@ async function fetchOpenRouter() {
   ];
 }
 
+async function fetchMistral() {
+  const key = process.env.MISTRAL_API_KEY;
+  if (!key) return [];
+  const { data = [] } = await fetchJson("https://api.mistral.ai/v1/models", {
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  return data
+    .filter((m) => m.type === "base" || m.type === "chat")  // skip embedding/fim models
+    .map((m) => ({ provider: "mistral", id: m.id, label: m.id, ctx: formatCtx(m.max_context_length), rpd: "—" }));
+}
+
+
 function getAgentRouter() {
   return [{ provider: "agentrouter", id: "auto", label: "Auto Router", ctx: "—", rpd: "—" }];
 }
@@ -99,6 +111,7 @@ const FETCHERS = {
   gemini: fetchGemini,
   nvidia: fetchNvidia,
   openrouter: fetchOpenRouter,
+  mistral: fetchMistral,
   agentrouter: async () => getAgentRouter(),
 };
 

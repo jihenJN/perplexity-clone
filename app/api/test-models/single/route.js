@@ -19,6 +19,7 @@ const PROVIDERS = {
   openrouter:  { type: "openai", base: "https://openrouter.ai/api/v1/chat/completions",                 key: () => process.env.OPENROUTER_API_KEY, extraHeaders: () => ({ "HTTP-Referer": process.env.SITE_URL ?? "http://localhost:3000", "X-Title": process.env.SITE_NAME ?? "AI Search App" }) },
   agentrouter: { type: "openai", base: `${process.env.AGENTROUTER_BASE_URL ?? "https://api.agentrouter.org/v1"}/chat/completions`, key: () => process.env.AGENTROUTER_API_KEY },
   gemini:      { type: "gemini", key: () => process.env.GEMINI_API_KEY },
+  mistral:     { type: "openai", base: "https://api.mistral.ai/v1/chat/completions",           key: () => process.env.MISTRAL_API_KEY },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -57,9 +58,19 @@ async function callOpenAI({ base, key, extraHeaders }, modelId, prompt) {
     signal: signal(),
     body: JSON.stringify({ model: modelId, max_tokens: 800, messages: [{ role: "user", content: prompt }] }),
   });
-  return safeJson(res);   // already in OpenAI shape
-}
+  const data = await safeJson(res);
 
+  // Normalize content — some models (Mistral, etc.) return thinking blocks as objects
+  const raw = data?.choices?.[0]?.message?.content;
+  if (Array.isArray(raw)) {
+    data.choices[0].message.content = raw
+      .filter((b) => typeof b.text === "string")  // 👈 skip {type, thinking, closed}
+      .map((b) => b.text)
+      .join("");
+  }
+
+  return data;
+}
 async function callGemini({ key }, modelId, prompt) {
   const res = await fetchWithRedirect(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${key()}`,
