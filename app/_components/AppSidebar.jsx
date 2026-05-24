@@ -24,10 +24,10 @@ const PRIMARY_LIGHT = "oklch(0.5161 0.0817 211.9 / 0.12)";
 const PRIMARY_BORDER = "oklch(0.5161 0.0817 211.9 / 0.5)";
 
 const MenuOptions = [
-  { title: "Home",     icon: Search,               path: "/" },
-  { title: "Discover", icon: Compass,               path: "/discover" },
-  { title: "Library",  icon: GalleryHorizontalEnd,  path: "/library" },
-  { title: "Sign in",  icon: LogIn,                 path: "/sign-in" },
+  { title: "Home", icon: Search, path: "/" },
+  { title: "Discover", icon: Compass, path: "/discover" },
+  { title: "Library", icon: GalleryHorizontalEnd, path: "/library" },
+  { title: "Sign in", icon: LogIn, path: "/sign-in" },
 ];
 
 export default function AppSidebar() {
@@ -44,17 +44,31 @@ export default function AppSidebar() {
         <button
           onClick={() => setOpen(true)}
           aria-label="Open sidebar"
-          style={{ color: PRIMARY, borderColor: PRIMARY_BORDER }}
-          className="fixed top-4 left-4 z-50 flex h-9 w-9 items-center justify-center rounded-full border bg-white transition-opacity hover:opacity-70"
+          style={{
+            color: PRIMARY,
+            borderColor: PRIMARY_BORDER,
+            backgroundColor: "#f0eeeb",
+          }}
+          className="fixed top-4 left-4 z-50 flex h-9 w-9 items-center justify-center rounded-full border transition-opacity hover:opacity-80"
         >
           <PanelLeftOpen size={16} strokeWidth={1.5} />
         </button>
       )}
 
       {/* ── sidebar ── */}
+      {/* mobile backdrop */}
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-30 bg-black/70 sm:hidden"
+          aria-hidden="true"
+        />
+      )}
       <aside
-        style={{ fontFamily: "'Geist', 'Helvetica Neue', sans-serif" }}
-        style={{ backgroundColor: "#f0eeeb" }}
+        style={{
+          fontFamily: "'Geist', 'Helvetica Neue', sans-serif",
+          backgroundColor: "#f0eeeb",
+        }}
         className={`
           fixed inset-y-0 left-0 z-40 flex flex-col
           border-r border-neutral-200
@@ -75,18 +89,22 @@ export default function AppSidebar() {
           <button
             onClick={() => setOpen(false)}
             aria-label="Close sidebar"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-300 transition-colors hover:text-neutral-500"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-500 transition-colors hover:text-neutral-800"
           >
             <PanelLeftClose size={15} strokeWidth={1.5} />
           </button>
         </div>
 
-        <div className="mx-4 border-t border-neutral-200" />
+        <div className="mx-4 border-t border-neutral-300" />
 
         {/* ─── New thread — pill shape ─────────── */}
         <div className="px-4 pt-4 pb-2">
           <button
-            style={{ borderColor: PRIMARY_BORDER, color: PRIMARY, backgroundColor: "#f0eeeb" }}
+            style={{
+              borderColor: PRIMARY_BORDER,
+              color: PRIMARY,
+              backgroundColor: "#f0eeeb",
+            }}
             className="flex w-full items-center justify-center gap-2 rounded-full border bg-white px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-70"
           >
             <Plus size={14} strokeWidth={2.5} />
@@ -95,7 +113,7 @@ export default function AppSidebar() {
         </div>
 
         {/* ─── Section label ───────────────────── */}
-        <p className="px-5 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-300">
+        <p className="px-5 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">
           Menu
         </p>
 
@@ -108,21 +126,25 @@ export default function AppSidebar() {
               <Link
                 key={menu.path}
                 href={menu.path}
+              
                 style={
-                  active
-                    ? { backgroundColor: PRIMARY, color: "#fff" }
-                    : {}
+                  active ? { backgroundColor: PRIMARY, color: "#fff" } : {}
                 }
                 className={`
                   flex items-center gap-3 rounded-full px-4 py-2.5
                   text-[15px] transition-all
-                  ${active
-                    ? "font-semibold shadow-sm"
-                    : "font-normal text-neutral-500 hover:text-neutral-800 hover:bg-neutral-200/50"
+                  ${
+                    active
+                      ? "font-semibold shadow-sm"
+                      : "font-normal text-neutral-500 hover:text-neutral-800 hover:bg-neutral-200/50"
                   }
                 `}
               >
-                <Icon size={16} strokeWidth={active ? 2.2 : 1.6} className="shrink-0" />
+                <Icon
+                  size={16}
+                  strokeWidth={active ? 2.2 : 1.6}
+                  className="shrink-0"
+                />
                 {menu.title}
               </Link>
             );
@@ -138,10 +160,7 @@ export default function AppSidebar() {
             style={{ borderColor: PRIMARY_BORDER, backgroundColor: "#ebe9e5" }}
             className="rounded-2xl border p-4"
           >
-            <p
-              style={{ color: PRIMARY }}
-              className="text-[13px] font-semibold"
-            >
+            <p style={{ color: PRIMARY }} className="text-[13px] font-semibold">
               Try Premium
             </p>
             <p className="mt-1 text-[12px] leading-relaxed text-neutral-400">
@@ -185,7 +204,9 @@ export default function AppSidebar() {
       </aside>
 
       {/* ── content offset ── */}
-      <div className={`transition-[margin] duration-300 ease-in-out ${open ? "ml-[230px]" : "ml-0"}`} />
+      <div
+        className={`transition-[margin] duration-300 ease-in-out ${open ? "ml-[230px]" : "ml-0"}`}
+      />
     </>
   );
 }

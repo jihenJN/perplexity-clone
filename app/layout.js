@@ -27,21 +27,13 @@ export default function RootLayout({ children }) {
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
-          {/*
-            defaultOpen={false} → sidebar starts collapsed on every load.
-            On mobile the shadcn SidebarProvider uses a Sheet (drawer),
-            so collapsing by default keeps the full viewport free.
-          */}
-          <SidebarProvider defaultOpen={false}>
+       
+          <SidebarProvider defaultOpen={true}>
             <AppSidebar />
 
             {/* Wrapper so the trigger + page content stack vertically */}
             <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-              {/* SidebarTrigger sits in its own bar so it never overlaps the Header */}
-              <div className="flex items-center h-10 px-3 border-b bg-white shrink-0">
-                <SidebarTrigger />
-              </div>
-
+           
               <Provider>
                 {children}
               </Provider>
