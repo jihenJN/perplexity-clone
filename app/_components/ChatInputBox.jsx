@@ -2,121 +2,158 @@
 
 import Image from "next/image"
 import React, { useState, useTransition } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  ArrowRight, Atom, AudioLines, Globe, Mic, Paperclip, SearchCheck,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { AudioLines, ArrowRight, Globe, Paperclip, Mic } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { useRouter } from "next/navigation"
-import { ModelPicker } from "./ModelPicker"
 import { useSearchStore } from "@/lib/stores/searchStore"
+import { TaskPicker } from "./TaskPicker"
+import { UsageBadge } from "./UsageBadge"
+import { ModelPicker } from "./ModelPicker"
+
+const MOCK_USAGE = {
+  searches:   { used: 18, limit: 25 },
+  research:   { used: 3,  limit: 5  },
+  resetsInMs: 20_520_000,
+}
+
+const searchTypeMap = {
+  SEARCH: "search", RESEARCH: "research",
+  WRITING: "search", CODE: "search", TRANSLATE: "search",
+  SUMMARIZE: "search", ANALYZE: "search", CALCULATE: "search",
+}
+
+function IconBtn({ onClick, label, children, className = "" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={[
+        "flex items-center justify-center h-8 w-8 rounded-full shrink-0",
+        "text-gray-400 hover:text-gray-600",
+        "border border-transparent hover:border-gray-200 hover:bg-gray-50",
+        "transition-all duration-150",
+        className,
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  )
+}
 
 function ChatInputBox() {
   const [userSearchInput, setUserSearchInput] = useState("")
-  const [searchType, setSearchType]           = useState("search")
+  const [activeTask, setActiveTask]           = useState("SEARCH")
   const [loading, setLoading]                 = useState(false)
-  const router                                = useRouter()
-  const [, startTransition]                   = useTransition()
-  const { setPendingSearch }                  = useSearchStore()
+
+  const router               = useRouter()
+  const [, startTransition]  = useTransition()
+  const { setPendingSearch } = useSearchStore()
 
   const onSearchQuery = () => {
     const trimmed = userSearchInput.trim()
     if (!trimmed) return
     setLoading(true)
     const libId = uuidv4()
-
-    // Save query to store before navigating — no URL size limit, no DB write
-    setPendingSearch(trimmed, searchType)
-
-    startTransition(() => {
-      router.push(`/search/${libId}`)
-    })
+    setPendingSearch(trimmed, searchTypeMap[activeTask] ?? "search")
+    startTransition(() => { router.push(`/search/${libId}`) })
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      onSearchQuery()
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSearchQuery() }
   }
 
+  const hasInput = userSearchInput.trim().length > 0
+
   return (
-    <div className="flex flex-col items-center min-h-screen justify-center px-4">
+    <div className="flex flex-col items-center min-h-screen justify-center px-3 sm:px-4">
       <Image
         src="/Perplexity_AI_logo.svg"
         alt="Perplexity clone logo"
         width={180}
         height={150}
-        className="w-36 sm:w-48 md:w-64 h-auto"
+        className="w-28 sm:w-48 md:w-64 h-auto"
         style={{ height: "auto" }}
         priority
       />
 
-      <div className="p-4 sm:p-5 w-full max-w-2xl border rounded-2xl mt-8 sm:mt-10">
-        <Tabs defaultValue="search" className="w-full">
-          <TabsContent value="search">
-            <input
-              type="text"
-              value={userSearchInput}
-              placeholder="Ask Anything..."
-              onChange={(e) => setUserSearchInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="w-full text-base sm:text-xl p-2 outline-none"
-            />
-          </TabsContent>
+      {/* Card */}
+      <div className="p-3 sm:p-5 w-full max-w-2xl border border-gray-200 rounded-2xl mt-6 sm:mt-10 overflow-visible">
 
-          <TabsContent value="research">
-            <input
-              type="text"
-              value={userSearchInput}
-              placeholder="Research Anything..."
-              onChange={(e) => setUserSearchInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="w-full text-base sm:text-xl p-2 outline-none"
-            />
-          </TabsContent>
+        {/* Text input */}
+        <input
+          type="text"
+          value={userSearchInput}
+          placeholder={activeTask === "RESEARCH" ? "Research anything…" : "Ask anything…"}
+          onChange={(e) => setUserSearchInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="w-full text-base sm:text-xl px-1 py-1 pb-3 outline-none bg-transparent"
+        />
 
-          <div className="flex flex-wrap justify-between items-center gap-2 mt-2">
-            <TabsList className="shrink-0">
-              <TabsTrigger value="search" onClick={() => setSearchType("search")}>
-                <SearchCheck className="h-4 w-4 mr-1" />
-                <span className="hidden xs:inline">Search</span>
-              </TabsTrigger>
-              <TabsTrigger value="research" onClick={() => setSearchType("research")}>
-                <Atom className="h-4 w-4 mr-1" />
-                <span className="hidden xs:inline">Research</span>
-              </TabsTrigger>
-            </TabsList>
+        {/* Divider */}
+        <div className="h-px bg-gray-100 mb-3" />
 
-            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-              <ModelPicker />
+        {/* ── DESKTOP toolbar (single row) ── */}
+        <div className="hidden sm:flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <TaskPicker value={activeTask} onChange={setActiveTask} />
+            <div className="w-px h-4 bg-gray-200 shrink-0" aria-hidden />
+            <ModelPicker activeTask={activeTask} />
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <UsageBadge usage={MOCK_USAGE} />
+            <div className="w-px h-4 bg-gray-200 mx-1.5 shrink-0" aria-hidden />
+            <IconBtn label="Focus mode"><Globe className="h-4 w-4" /></IconBtn>
+            <IconBtn label="Attach file"><Paperclip className="h-4 w-4" /></IconBtn>
+            <IconBtn label="Voice input"><Mic className="h-4 w-4" /></IconBtn>
+            <SendBtn hasInput={hasInput} loading={loading} onClick={onSearchQuery} />
+          </div>
+        </div>
 
-              <Button variant="ghost" size="icon" className="hidden sm:flex">
-                <Globe className="text-gray-500 h-4 w-4 sm:h-5 sm:w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="hidden sm:flex">
-                <Paperclip className="text-gray-500 h-4 w-4 sm:h-5 sm:w-5" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Mic className="text-gray-500 h-4 w-4 sm:h-5 sm:w-5" />
-              </Button>
+        {/* ── MOBILE toolbar (two rows) ── */}
+        <div className="flex sm:hidden flex-col gap-2.5">
 
-              <Button
-                size="icon"
-                disabled={loading || !userSearchInput.trim()}
-                onClick={onSearchQuery}
-                aria-label="Submit search"
-              >
-                {!userSearchInput.trim()
-                  ? <AudioLines className="text-white h-4 w-4 sm:h-5 sm:w-5" />
-                  : <ArrowRight className="text-white h-4 w-4 sm:h-5 sm:w-5" />}
-              </Button>
+          {/* Row 1: task pill + model select (full width, space-between) */}
+          <div className="flex items-center gap-2">
+            <TaskPicker value={activeTask} onChange={setActiveTask} />
+            <div className="w-px h-4 bg-gray-200 shrink-0" aria-hidden />
+            <ModelPicker activeTask={activeTask} mobileCompact />
+          </div>
+
+          {/* Row 2: usage badge + spacer + mic + send */}
+          <div className="flex items-center justify-between">
+            <UsageBadge usage={MOCK_USAGE} mobileCompact />
+            <div className="flex items-center gap-1">
+              <IconBtn label="Attach file"><Paperclip className="h-4 w-4" /></IconBtn>
+              <IconBtn label="Voice input"><Mic className="h-4 w-4" /></IconBtn>
+              <SendBtn hasInput={hasInput} loading={loading} onClick={onSearchQuery} />
             </div>
           </div>
-        </Tabs>
+        </div>
       </div>
     </div>
+  )
+}
+
+function SendBtn({ hasInput, loading, onClick }) {
+  return (
+    <button
+      type="button"
+      disabled={loading || !hasInput}
+      onClick={onClick}
+      aria-label="Submit search"
+      className={[
+        "flex items-center justify-center h-8 w-8 rounded-full ml-1 shrink-0",
+        "transition-all duration-150",
+        hasInput
+          ? "bg-teal-600 hover:bg-teal-700 shadow-sm shadow-teal-200"
+          : "bg-teal-500/80 cursor-default",
+      ].join(" ")}
+    >
+      {hasInput
+        ? <ArrowRight className="h-4 w-4 text-white" />
+        : <AudioLines className="h-4 w-4 text-white/70" />}
+    </button>
   )
 }
 

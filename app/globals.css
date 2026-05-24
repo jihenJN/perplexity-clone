@@ -130,3 +130,8 @@
     font-size: 16px; /* bump this up globally */
   }
 }
+
+
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

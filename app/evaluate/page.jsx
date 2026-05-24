@@ -50,6 +50,60 @@ const RATING_DIMS = [
   { key: "stability",  label: "Stability",   color: "#7c3aed", icon: "🛡️" },
 ];
 
+// ─── Export helpers ───────────────────────────────────────────────────────────
+
+function buildExportRows(results) {
+  return results
+    .filter((r) => r.status === "ok")
+    .map((r) => ({
+      model:        r.id,
+      label:        r.label,
+      provider:     r.provider,
+      ms:           r.ms,
+      ratings:      r.ratings,
+      capabilities: r.capabilityScores,
+      overall:      parseFloat(overallRating(r.ratings).toFixed(2)),
+    }));
+}
+
+function exportJSON(results) {
+  const rows = buildExportRows(results);
+  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+  triggerDownload(blob, `model-eval-${nowStamp()}.json`);
+}
+
+function exportCSV(results) {
+  const capKeys = Object.keys(CAPABILITIES);
+  const header  = ["model", "label", "provider", "latency_ms", "speed", "accuracy", "usageLimit", "stability", "overall", ...capKeys.map((c) => `cap_${c}`)].join(",");
+  const rows    = buildExportRows(results).map((r) => [
+    `"${r.model}"`,
+    `"${r.label}"`,
+    r.provider,
+    r.ms,
+    r.ratings.speed,
+    r.ratings.accuracy,
+    r.ratings.usageLimit,
+    r.ratings.stability,
+    r.overall,
+    ...capKeys.map((c) => r.capabilities?.[c] ?? ""),
+  ].join(","));
+  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
+  triggerDownload(blob, `model-eval-${nowStamp()}.csv`);
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = Object.assign(document.createElement("a"), { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function nowStamp() {
+  return new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "-");
+}
+
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 const modelKey = (m) => `${m.provider}:${m.id}`;
@@ -164,6 +218,128 @@ function StatusPill({ status }) {
     </span>
   );
 }
+
+// ─── Export menu ──────────────────────────────────────────────────────────────
+
+function ExportMenu({ results, disabled }) {
+  const [open, setOpen] = useState(false);
+  const okCount = results.filter((r) => r.status === "ok").length;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        style={{
+          padding:      "7px 13px",
+          fontSize:     12,
+          fontWeight:   600,
+          background:   disabled ? "#f3f4f6" : "#fff",
+          color:        disabled ? "#9ca3af" : "#374151",
+          border:       "1px solid #e5e7eb",
+          borderRadius: 9,
+          cursor:       disabled ? "not-allowed" : "pointer",
+          display:      "flex",
+          alignItems:   "center",
+          gap:          5,
+        }}
+      >
+        ↓ Export
+        <span style={{ fontSize: 10, color: "#9ca3af" }}>({okCount})</span>
+        <span style={{ fontSize: 9, marginLeft: 2 }}>{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <>
+          {/* Backdrop to close on outside click */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 10 }}
+            onClick={() => setOpen(false)}
+          />
+          <div
+            style={{
+              position:     "absolute",
+              top:          "calc(100% + 6px)",
+              right:        0,
+              zIndex:       20,
+              background:   "#fff",
+              border:       "1px solid #e5e7eb",
+              borderRadius: 10,
+              boxShadow:    "0 8px 24px rgba(0,0,0,0.10)",
+              minWidth:     200,
+              overflow:     "hidden",
+            }}
+          >
+            {/* Header */}
+            <div style={{ padding: "8px 14px", background: "#f9fafb", borderBottom: "1px solid #f3f4f6" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Export {okCount} evaluated models
+              </span>
+            </div>
+
+            {/* JSON */}
+            <button
+              onClick={() => { exportJSON(results); setOpen(false); }}
+              style={menuItemStyle}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <span style={{ fontSize: 16 }}>{ }</span>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>JSON</div>
+                <div style={{ fontSize: 10, color: "#9ca3af" }}>Full scores · ratings · responses</div>
+              </div>
+            </button>
+
+            {/* CSV */}
+            <button
+              onClick={() => { exportCSV(results); setOpen(false); }}
+              style={menuItemStyle}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <span style={{ fontSize: 16 }}>📊</span>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>CSV</div>
+                <div style={{ fontSize: 10, color: "#9ca3af" }}>Flat table · open in Excel / Sheets</div>
+              </div>
+            </button>
+
+            {/* Copy JSON */}
+            <button
+              onClick={() => {
+                const rows = buildExportRows(results);
+                navigator.clipboard.writeText(JSON.stringify(rows, null, 2));
+                setOpen(false);
+              }}
+              style={{ ...menuItemStyle, borderTop: "1px solid #f3f4f6" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <span style={{ fontSize: 16 }}>📋</span>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>Copy JSON</div>
+                <div style={{ fontSize: 10, color: "#9ca3af" }}>To clipboard</div>
+              </div>
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const menuItemStyle = {
+  width:       "100%",
+  padding:     "10px 14px",
+  display:     "flex",
+  alignItems:  "center",
+  gap:         10,
+  border:      "none",
+  background:  "transparent",
+  cursor:      "pointer",
+  transition:  "background 0.1s",
+};
 
 // ─── Model Card ───────────────────────────────────────────────────────────────
 
@@ -658,7 +834,7 @@ export default function EvaluatePage() {
 
   if (loading) {
     return (
-      <div style={{ ...S.page, textAlign: "center", paddingTop: "5rem" }}>
+      <div style={{ ...S.page, textAlign: "center", padding: "5rem 1rem 4rem" }}>
         <div style={{ fontSize: 28, marginBottom: 12 }}>🧪</div>
         <div style={{ fontSize: 15, color: "#6b7280" }}>Fetching models from providers…</div>
         <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 6 }}>
@@ -694,6 +870,7 @@ export default function EvaluatePage() {
           <button onClick={loadModels} disabled={loading} style={S.btnSecondary}>
             ↻ Refresh
           </button>
+          <ExportMenu results={allResults} disabled={!hasResults || running} />
           {running && (
             <span style={{ fontSize: 13, color: "#6b7280", fontVariantNumeric: "tabular-nums" }}>
               {done}/{models.length}
