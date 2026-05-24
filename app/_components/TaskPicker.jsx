@@ -7,21 +7,20 @@ import {
 } from "lucide-react"
 
 export const TASK_CONFIG = {
-  SEARCH:    { label: "Search",        icon: Search,     color: "#0d9488" },
-  RESEARCH:  { label: "Research",      icon: Atom,       color: "#7c3aed" },
-  WRITING:   { label: "Writing",       icon: Pencil,     color: "#db2777" },
-  CODE:      { label: "Code",          icon: Code2,      color: "#6366f1" },
-  TRANSLATE: { label: "Translation",   icon: Languages,  color: "#0891b2" },
-  SUMMARIZE: { label: "Summarization", icon: FileText,   color: "#d97706" },
-  ANALYZE:   { label: "Analysis",      icon: BarChart2,  color: "#059669" },
-  CALCULATE: { label: "Math",          icon: Calculator, color: "#2563eb" },
+  SEARCH:    { label: "Search",        icon: Search     },
+  RESEARCH:  { label: "Research",      icon: Atom       },
+  WRITING:   { label: "Writing",       icon: Pencil     },
+  CODE:      { label: "Code",          icon: Code2      },
+  TRANSLATE: { label: "Translation",   icon: Languages  },
+  SUMMARIZE: { label: "Summarization", icon: FileText   },
+  ANALYZE:   { label: "Analysis",      icon: BarChart2  },
+  CALCULATE: { label: "Math",          icon: Calculator },
 }
 
-// Keys shown above the separator
-const TOP_KEYS = ["SEARCH", "RESEARCH"]
-// Keys shown below the separator
-const BOTTOM_KEYS = ["WRITING", "CODE", "TRANSLATE", "SUMMARIZE", "ANALYZE", "CALCULATE"]
+const PRIMARY = "oklch(0.5161 0.0817 211.9)"
 
+const TOP_KEYS    = ["SEARCH", "RESEARCH"]
+const BOTTOM_KEYS = ["WRITING", "CODE", "TRANSLATE", "SUMMARIZE", "ANALYZE", "CALCULATE"]
 export const ALL_TASK_KEYS = [...TOP_KEYS, ...BOTTOM_KEYS]
 
 export function TaskPicker({ value = "SEARCH", onChange }) {
@@ -49,27 +48,26 @@ export function TaskPicker({ value = "SEARCH", onChange }) {
         aria-selected={selected}
         onClick={() => { onChange?.(key); setOpen(false) }}
         className="flex w-full items-center gap-2.5 px-3 py-[7px] text-left text-sm transition-colors hover:bg-gray-50"
-        style={selected ? { color: cfg.color, fontWeight: 500 } : { color: "#374151" }}
+        style={selected ? { color: PRIMARY, fontWeight: 500 } : { color: "#374151" }}
       >
         <ItemIcon
           className="h-3.5 w-3.5 shrink-0"
           aria-hidden
-          style={selected ? { color: cfg.color } : { color: "#9ca3af" }}
+          style={selected ? { color: PRIMARY } : { color: "#9ca3af" }}
         />
         <span className="flex-1">{cfg.label}</span>
-        {selected && <Check className="h-3.5 w-3.5 shrink-0" style={{ color: cfg.color }} aria-hidden />}
+        {selected && <Check className="h-3.5 w-3.5 shrink-0" style={{ color: PRIMARY }} aria-hidden />}
       </button>
     )
   }
 
   return (
     <div ref={ref} className="relative">
-      {/* Trigger pill */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
-        style={{ background: active.color, borderColor: active.color, color: "#fff" }}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border text-white"
+        style={{ background: PRIMARY, borderColor: PRIMARY }}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Task: ${active.label}`}
@@ -83,24 +81,18 @@ export function TaskPicker({ value = "SEARCH", onChange }) {
         />
       </button>
 
-      {/* Dropdown — opens UPWARD */}
       {open && (
         <div
           className="absolute left-0 bottom-[calc(100%+8px)] z-50 w-52 rounded-xl border border-gray-100 bg-white py-1.5 shadow-xl shadow-black/[0.06]"
           role="listbox"
           aria-label="Select task"
         >
-          {/* Search + Research */}
           {TOP_KEYS.map(renderItem)}
-
-          {/* Separator with label */}
           <div className="flex items-center gap-2 px-3 my-1">
             <div className="flex-1 h-px bg-gray-100" />
             <span className="text-[10px] font-medium text-gray-300 uppercase tracking-wider">Modes</span>
             <div className="flex-1 h-px bg-gray-100" />
           </div>
-
-          {/* Task categories */}
           {BOTTOM_KEYS.map(renderItem)}
         </div>
       )}

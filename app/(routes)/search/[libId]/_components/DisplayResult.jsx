@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button"
 import LoadingSteps from "./LoadingSteps"
 import { useModelStore } from "@/lib/stores/modelStore"
 import { useSearchStore } from "@/lib/stores/searchStore"
-import { ModelPicker } from "@/app/_components/ModelPicker"
+import { ModelSelect } from "@/app/_components/ModelSelect"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -550,7 +550,7 @@ function DisplayResult() {
               </Button>
             <div className="flex items-center gap-1">
               
-              <ModelPicker />
+              <ModelSelect />
                <Button
               variant="ghost"
               size="icon"

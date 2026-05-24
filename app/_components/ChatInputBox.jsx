@@ -2,13 +2,16 @@
 
 import Image from "next/image"
 import React, { useState, useTransition } from "react"
-import { AudioLines, ArrowRight, Globe, Paperclip, Mic } from "lucide-react"
+import { AudioLines, ArrowRight, Paperclip, Mic } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { useRouter } from "next/navigation"
 import { useSearchStore } from "@/lib/stores/searchStore"
 import { TaskPicker } from "./TaskPicker"
+import { ModelSelect } from "./ModelSelect"
 import { UsageBadge } from "./UsageBadge"
-import { ModelPicker } from "./ModelPicker"
+
+
+const PRIMARY = "oklch(0.5161 0.0817 211.9)"
 
 const MOCK_USAGE = {
   searches:   { used: 18, limit: 25 },
@@ -37,6 +40,27 @@ function IconBtn({ onClick, label, children, className = "" }) {
       ].join(" ")}
     >
       {children}
+    </button>
+  )
+}
+
+function SendBtn({ hasInput, loading, onClick }) {
+  return (
+    <button
+      type="button"
+      disabled={loading || !hasInput}
+      onClick={onClick}
+      aria-label="Submit search"
+      className="flex items-center justify-center h-8 w-8 rounded-full ml-1 shrink-0 transition-all duration-150"
+      style={{
+        background: PRIMARY,
+        opacity: hasInput ? 1 : 0.6,
+        cursor: hasInput ? "pointer" : "default",
+      }}
+    >
+      {hasInput
+        ? <ArrowRight className="h-4 w-4 text-white" />
+        : <AudioLines className="h-4 w-4 text-white/70" />}
     </button>
   )
 }
@@ -77,10 +101,7 @@ function ChatInputBox() {
         priority
       />
 
-      {/* Card */}
       <div className="p-3 sm:p-5 w-full max-w-2xl border border-gray-200 rounded-2xl mt-6 sm:mt-10 overflow-visible">
-
-        {/* Text input */}
         <input
           type="text"
           value={userSearchInput}
@@ -90,37 +111,31 @@ function ChatInputBox() {
           className="w-full text-base sm:text-xl px-1 py-1 pb-3 outline-none bg-transparent"
         />
 
-        {/* Divider */}
         <div className="h-px bg-gray-100 mb-3" />
 
-        {/* ── DESKTOP toolbar (single row) ── */}
+        {/* Desktop toolbar */}
         <div className="hidden sm:flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <TaskPicker value={activeTask} onChange={setActiveTask} />
             <div className="w-px h-4 bg-gray-200 shrink-0" aria-hidden />
-            <ModelPicker activeTask={activeTask} />
+            <ModelSelect activeTask={activeTask} />
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
             <UsageBadge usage={MOCK_USAGE} />
             <div className="w-px h-4 bg-gray-200 mx-1.5 shrink-0" aria-hidden />
-            <IconBtn label="Focus mode"><Globe className="h-4 w-4" /></IconBtn>
             <IconBtn label="Attach file"><Paperclip className="h-4 w-4" /></IconBtn>
             <IconBtn label="Voice input"><Mic className="h-4 w-4" /></IconBtn>
             <SendBtn hasInput={hasInput} loading={loading} onClick={onSearchQuery} />
           </div>
         </div>
 
-        {/* ── MOBILE toolbar (two rows) ── */}
+        {/* Mobile toolbar */}
         <div className="flex sm:hidden flex-col gap-2.5">
-
-          {/* Row 1: task pill + model select (full width, space-between) */}
           <div className="flex items-center gap-2">
             <TaskPicker value={activeTask} onChange={setActiveTask} />
             <div className="w-px h-4 bg-gray-200 shrink-0" aria-hidden />
-            <ModelPicker activeTask={activeTask} mobileCompact />
+            <ModelSelect activeTask={activeTask} mobileCompact />
           </div>
-
-          {/* Row 2: usage badge + spacer + mic + send */}
           <div className="flex items-center justify-between">
             <UsageBadge usage={MOCK_USAGE} mobileCompact />
             <div className="flex items-center gap-1">
@@ -132,28 +147,6 @@ function ChatInputBox() {
         </div>
       </div>
     </div>
-  )
-}
-
-function SendBtn({ hasInput, loading, onClick }) {
-  return (
-    <button
-      type="button"
-      disabled={loading || !hasInput}
-      onClick={onClick}
-      aria-label="Submit search"
-      className={[
-        "flex items-center justify-center h-8 w-8 rounded-full ml-1 shrink-0",
-        "transition-all duration-150",
-        hasInput
-          ? "bg-teal-600 hover:bg-teal-700 shadow-sm shadow-teal-200"
-          : "bg-teal-500/80 cursor-default",
-      ].join(" ")}
-    >
-      {hasInput
-        ? <ArrowRight className="h-4 w-4 text-white" />
-        : <AudioLines className="h-4 w-4 text-white/70" />}
-    </button>
   )
 }
 

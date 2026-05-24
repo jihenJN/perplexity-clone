@@ -5,6 +5,8 @@ import { Cpu, ChevronDown, Check } from "lucide-react"
 import { getModelsByTask } from "@/lib/ai/models"
 import { useModelStore } from "@/lib/stores/modelStore"
 
+const PRIMARY = "oklch(0.5161 0.0817 211.9)"
+
 const PROVIDER_COLORS = {
   groq:        "#f97316",
   cerebras:    "#7c3aed",
@@ -16,7 +18,7 @@ const PROVIDER_COLORS = {
   openai:      "#10a37f",
 }
 
-export function ModelPicker({ activeTask = "SEARCH", mobileCompact = false }) {
+export function ModelSelect({ activeTask = "SEARCH", mobileCompact = false }) {
   const { selectedModelId, setModel } = useModelStore()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -44,7 +46,6 @@ export function ModelPicker({ activeTask = "SEARCH", mobileCompact = false }) {
 
   return (
     <div ref={ref} className="relative min-w-0">
-      {/* Trigger pill */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -53,7 +54,6 @@ export function ModelPicker({ activeTask = "SEARCH", mobileCompact = false }) {
         aria-expanded={open}
         aria-label={`Model: ${activeModel.label}`}
       >
-        {/* On mobile compact: show colored provider dot instead of CPU icon */}
         {mobileCompact
           ? <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} aria-hidden />
           : <Cpu className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
@@ -68,7 +68,6 @@ export function ModelPicker({ activeTask = "SEARCH", mobileCompact = false }) {
         />
       </button>
 
-      {/* Dropdown — opens UPWARD */}
       {open && (
         <div
           className="absolute left-0 bottom-[calc(100%+8px)] z-50 w-60 rounded-xl border border-gray-100 bg-white py-1.5 shadow-xl shadow-black/[0.06]"
@@ -77,13 +76,9 @@ export function ModelPicker({ activeTask = "SEARCH", mobileCompact = false }) {
         >
           <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
             {taskKey === "ALL" ? "All models" : `${activeTask.charAt(0) + activeTask.slice(1).toLowerCase()} models`}
-            <span className="ml-1 font-normal normal-case tracking-normal text-gray-300">
-              ({models.length})
-            </span>
+            <span className="ml-1 font-normal normal-case tracking-normal text-gray-300">({models.length})</span>
           </p>
-
           <div className="h-px bg-gray-100 mx-2 mb-1" />
-
           <ul className="max-h-64 overflow-y-auto">
             {models.map((model) => {
               const isSelected = selectedModelId === model.id
@@ -98,12 +93,15 @@ export function ModelPicker({ activeTask = "SEARCH", mobileCompact = false }) {
                     className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
                   >
                     <span className="w-2 h-2 rounded-full shrink-0 mt-px" style={{ background: color }} aria-hidden />
-                    <span className={`flex-1 truncate text-sm ${isSelected ? "font-medium text-gray-900" : "text-gray-700"}`}>
+                    <span
+                      className="flex-1 truncate text-sm"
+                      style={isSelected ? { fontWeight: 500, color: PRIMARY } : { color: "#374151" }}
+                    >
                       {model.label}
                     </span>
                     <span className="text-[10px] text-gray-400 shrink-0">{model.badge}</span>
                     {isSelected
-                      ? <Check className="h-3.5 w-3.5 text-green-500 shrink-0" aria-hidden />
+                      ? <Check className="h-3.5 w-3.5 shrink-0" style={{ color: PRIMARY }} aria-hidden />
                       : <span className="w-3.5 shrink-0" />}
                   </button>
                 </li>
