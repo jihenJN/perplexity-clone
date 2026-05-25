@@ -1,9 +1,11 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "./_components/AppSidebar";
 import { ClerkProvider } from "@clerk/nextjs";
 import Provider from "./provider";
+import { clerkAppearance } from "@/lib/clerk-appearance";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,7 +24,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider appearance={clerkAppearance}>
       <html lang="en">
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -34,7 +36,7 @@ export default function RootLayout({ children }) {
             {/* Wrapper so the trigger + page content stack vertically */}
             <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
            
-              <Provider>
+              <Provider >
                 {children}
               </Provider>
             </div>
