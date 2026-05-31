@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Compass, GalleryHorizontalEnd, Search, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { SignInButton, SignOutButton, UserButton, useUser } from "@clerk/nextjs";
+import { clerkAppearance } from "@/lib/clerk-appearance";
 
 const PRIMARY = "oklch(0.5161 0.0817 211.9)";
 const PRIMARY_LIGHT = "oklch(0.5161 0.0817 211.9 / 0.12)";
@@ -115,7 +116,7 @@ export default function AppSidebar() {
               </>
             ) : (
               // ✅ Opens Clerk modal — no page redirect
-              <SignInButton mode="modal">
+              <SignInButton mode="modal" appearance={clerkAppearance}>
                 <button
                   style={{ backgroundColor: PRIMARY }}
                   className="w-full rounded-full px-3 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-80"
