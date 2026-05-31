@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Compass, GalleryHorizontalEnd, Search, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import { Compass, GalleryHorizontalEnd, Zap, PanelLeftClose, ChevronRight,PanelLeftOpen, Plus } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { SignInButton, SignOutButton, UserButton, useUser } from "@clerk/nextjs";
 import { clerkAppearance } from "@/lib/clerk-appearance";
@@ -12,7 +12,7 @@ const PRIMARY_LIGHT = "oklch(0.5161 0.0817 211.9 / 0.12)";
 const PRIMARY_BORDER = "oklch(0.5161 0.0817 211.9 / 0.5)";
 
 const MenuOptions = [
-  { title: "Home", icon: Search, path: "/" },
+  { title: "New", icon: Plus, path: "/" },
   { title: "Discover", icon: Compass, path: "/discover" },
   { title: "Library", icon: GalleryHorizontalEnd, path: "/library" },
   // ❌ Removed "Sign in" as a nav item — handled in footer now
@@ -22,6 +22,8 @@ export default function AppSidebar() {
   const path = usePathname();
   const { user, isLoaded } = useUser();
   const [open, setOpen] = useState(true);
+  const [showUpgrade, setShowUpgrade] = useState(true);
+  const isPro = user?.publicMetadata?.plan === "pro";
 
   if (!isLoaded) return null;
 
@@ -56,10 +58,10 @@ export default function AppSidebar() {
           </button>
         </div>
 
-        <div className="mx-4 border-t border-neutral-300" />
+        <div className="mx-4 border-t border-neutral-300 mb-4" />
 
         {/* New Thread */}
-        <div className="px-4 pt-4 pb-2">
+        {/* <div className="px-4 pt-4 pb-2">
           <button
             style={{ borderColor: PRIMARY_BORDER, color: PRIMARY, backgroundColor: "#f0eeeb" }}
             className="flex w-full items-center justify-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-70"
@@ -67,9 +69,9 @@ export default function AppSidebar() {
             <Plus size={14} strokeWidth={2.5} />
             New thread
           </button>
-        </div>
+        </div> */}
 
-        <p className="px-5 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Menu</p>
+        {/* <p className="px-5 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Menu</p> */}
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 space-y-1">
@@ -91,42 +93,55 @@ export default function AppSidebar() {
         </nav>
 
         {/* Footer */}
-        <div className="px-4 pb-5 pt-2 space-y-4">
-          <div className="border-t border-neutral-200" />
+      
+<div className="px-3 pb-5 pt-2 space-y-3">
+ 
 
-          <div style={{ borderColor: PRIMARY_BORDER, backgroundColor: "#ebe9e5" }} className="rounded-2xl border p-4">
-            <p style={{ color: PRIMARY }} className="text-[13px] font-semibold">Try Premium</p>
-            <p className="mt-1 text-[12px] leading-relaxed text-neutral-400">Image upload, smarter AI & more.</p>
-            <button style={{ backgroundColor: PRIMARY }} className="mt-3 w-full rounded-full py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-80">
-              Learn more
-            </button>
-          </div>
-
-          {/* ✅ Signed in: show avatar + logout */}
-          {/* ✅ Signed out: show Sign In modal button */}
-          <div className="flex items-center justify-between px-1">
-            {user ? (
-              <>
-                <UserButton appearance={{ elements: { avatarBox: "h-8 w-8 rounded-full" } }} />
-                <SignOutButton>
-                  <button className="rounded-full border border-neutral-300 px-3 py-1.5 text-[12px] text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800">
-                    Log out
-                  </button>
-                </SignOutButton>
-              </>
-            ) : (
-              // ✅ Opens Clerk modal — no page redirect
-              <SignInButton mode="modal" appearance={clerkAppearance}>
-                <button
-                  style={{ backgroundColor: PRIMARY }}
-                  className="w-full rounded-full px-3 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-80"
-                >
-                  Sign in
-                </button>
-              </SignInButton>
-            )}
-          </div>
-        </div>
+  {/* Premium card — only for free users */}
+ {user && !isPro && (
+  <button
+    onClick={() => router.push("/upgrade")}
+    className="flex w-full items-center gap-2.5 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 transition-colors hover:border-neutral-300 hover:bg-neutral-50"
+  >
+    <div
+      style={{ backgroundColor: PRIMARY }}
+      className="flex h-7 w-7 items-center justify-center rounded-lg flex-shrink-0"
+    >
+      <Zap size={13} className="text-white" />
+    </div>
+    <div className="flex-1 text-left">
+      <p className="text-[12px] font-semibold text-neutral-800">Upgrade to Pro</p>
+      <p className="text-[10px] text-neutral-400">More searches, smarter AI</p>
+    </div>
+    <ChevronRight size={14} className="text-neutral-300 flex-shrink-0" />
+  </button>
+)}
+ <div className="border-t border-neutral-200" />
+  {/* User row */}
+  {user ? (
+    <div className="flex items-center gap-2.5 px-1">
+      <UserButton appearance={{ elements: { avatarBox: "h-7 w-7" } }} />
+      <div className="flex-1 min-w-0">
+        <p className="text-[12px] font-medium text-neutral-800 truncate">{user.firstName}</p>
+        <p className="text-[10px] text-neutral-400">Free plan</p>
+      </div>
+      <SignOutButton>
+        <button className="text-[11px] text-neutral-400 hover:text-neutral-700 transition-colors">
+          Log out
+        </button>
+      </SignOutButton>
+    </div>
+  ) : (
+    <SignInButton mode="modal" appearance={clerkAppearance}>
+      <button
+        style={{ backgroundColor: PRIMARY }}
+        className="w-full rounded-full px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-80 transition-opacity"
+      >
+        Sign in
+      </button>
+    </SignInButton>
+  )}
+</div>
       </aside>
 
       <div className={`transition-[margin] duration-300 ease-in-out ${open ? "ml-[230px]" : "ml-0"}`} />
