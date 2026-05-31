@@ -48,7 +48,7 @@ export default function AppSidebar() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-5 pb-4">
           <Link href="/" className="flex items-center">
-            <Image src="/Perplexity_AI_logo.svg" alt="Perplexity" width={112} height={28} />
+            <Image src="/Perplexity_AI_logo.svg" alt="Perplexity" width={112} height={28} style={{ height: 'auto' }} />
           </Link>
           <button onClick={() => setOpen(false)} aria-label="Close sidebar" className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-500 transition-colors hover:text-neutral-800">
             <PanelLeftClose size={15} strokeWidth={1.5} />
